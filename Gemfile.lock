@@ -1,12 +1,13 @@
+GIT
+  remote: https://github.com/CocoaPods/VersionKit.git
+  revision: 52e4b7142987f207f2f2daf8672cb2d1a5d91cff
+  specs:
+    version_kit (0.0.1)
+
 PATH
   remote: .
   specs:
     resolver (0.0.1)
-
-PATH
-  remote: ../VersionKit
-  specs:
-    version_kit (0.0.1)
 
 GEM
   remote: https://rubygems.org/

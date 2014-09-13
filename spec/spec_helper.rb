@@ -2,7 +2,7 @@
 # Set up coverage analysis
 #-----------------------------------------------------------------------------#
 
-if ENV['CI'] || ENV['GENERATE_COVERAGE']
+if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0'
   require 'simplecov'
   require 'coveralls'
 
