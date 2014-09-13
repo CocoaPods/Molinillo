@@ -4,7 +4,7 @@ require 'version_kit/resolver/ui'
 require 'version_kit/resolver/specification_provider'
 require 'version_kit/resolver/specification'
 
-module VersionKit
+module Resolver
   # Features
   #
   # - Supports multiple resolution groups with the limitation of only one

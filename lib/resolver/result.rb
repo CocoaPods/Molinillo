@@ -1,4 +1,4 @@
-module VersioKit
+module Resolver
   class Resolver
     class Result
       attr_reader :conflicts, :dependency_graph

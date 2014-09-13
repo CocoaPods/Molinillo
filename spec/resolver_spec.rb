@@ -2,7 +2,7 @@ require File.expand_path('../spec_helper', __FILE__)
 require 'json'
 require 'pathname'
 
-module VersionKit
+module Resolver
   describe Resolver do
 
     FIXTURE_DIR = Pathname.new('resolver_integration_specs')
