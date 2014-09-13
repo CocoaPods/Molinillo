@@ -1,8 +1,4 @@
-require 'version_kit/resolver/result'
-require 'version_kit/resolver/state'
-require 'version_kit/resolver/ui'
-require 'version_kit/resolver/specification_provider'
-require 'version_kit/resolver/specification'
+require 'resolver/result'
 
 module Resolver
   # Features
@@ -111,7 +107,7 @@ module Resolver
       end
     end
 
-    def resolve(requested, base)
+    def resolve(requested, base = {})
       Resolution.new(specification_provider,
                      resolver_ui,
                      requested,
