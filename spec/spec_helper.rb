@@ -4,16 +4,17 @@
 
 if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0'
   require 'simplecov'
-  require 'coveralls'
+  require 'codeclimate-test-reporter'
 
   if ENV['CI']
-    SimpleCov.formatter = Coveralls::SimpleCov::Formatter
+    SimpleCov.formatter = CodeClimate::TestReporter::Formatter
   elsif ENV['GENERATE_COVERAGE']
     SimpleCov.formatter = SimpleCov::Formatter::HTMLFormatter
   end
   SimpleCov.start do
     add_filter '/vendor/'
   end
+  CodeClimate::TestReporter.start
 end
 
 # Set up

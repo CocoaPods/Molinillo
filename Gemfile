@@ -15,6 +15,6 @@ group :development do
   gem 'json_pure', '~> 1.8'
   if RUBY_VERSION >= '2.0.0'
     gem 'rubocop'
-    gem 'coveralls', :require => false
+    gem 'codeclimate-test-reporter', :require => false
   end
 end
