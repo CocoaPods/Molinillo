@@ -9,7 +9,7 @@ group :development do
   gem 'mocha-on-bacon'
   gem 'prettybacon'
   gem 'kicker'
-  gem 'version_kit', :path => '../VersionKit'#:git => 'https://github.com/CocoaPods/VersionKit.git'
+  gem 'version_kit', :git => 'https://github.com/CocoaPods/VersionKit.git'
 
   # Ruby 1.8.7 fixes
   gem 'mime-types', '< 2.0'
