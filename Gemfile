@@ -4,7 +4,6 @@ gemspec
 
 group :development do
   gem 'bacon'
-  gem 'coveralls', :require => false
   gem 'mocha', '~> 0.11.4'
   gem 'mocha-on-bacon'
   gem 'prettybacon'
