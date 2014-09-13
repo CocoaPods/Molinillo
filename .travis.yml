@@ -1,0 +1,17 @@
+language: ruby
+bundler_args: --without debugging documentation
+
+addons:
+ code_climate:
+   repo_token: 6e4e51242ab1a7f37a10ba48518616e71f5d625e10cd0e68247722e96f0c5b50
+
+rvm:
+  - 1.8.7
+  - 2.0.0
+
+env:
+  - LANG="en_US.UTF-8"
+
+install: rake bootstrap
+
+script: bundle exec rake spec
