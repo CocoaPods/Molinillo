@@ -18,9 +18,9 @@ module Resolver
     end
 
     def ==(other)
-      self.name == other.name &&
-        self.version == other.version &&
-        self.dependencies == other.dependencies
+      name == other.name &&
+        version == other.version &&
+        dependencies == other.dependencies
     end
   end
 
@@ -38,7 +38,7 @@ module Resolver
       end
     end
 
-    def requirement_satisfied_by?(requirement, activated, spec)
+    def requirement_satisfied_by?(requirement, _activated, spec)
       requirement.satisfied_by?(spec.version)
     end
 

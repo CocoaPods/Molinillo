@@ -4,7 +4,7 @@ module Resolver
       []
     end
 
-    def requirement_satisfied_by?(requirement, activated, spec)
+    def requirement_satisfied_by?(_requirement, _activated, _spec)
       true
     end
 
