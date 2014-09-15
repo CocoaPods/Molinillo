@@ -8,12 +8,13 @@ module Resolver
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'
 
   class TestSpecification
-    attr_accessor :name, :version, :dependencies, :platform
+    attr_accessor :name, :version, :dependencies
     def initialize(hash)
       self.name = hash['name']
-      self.version = hash['version']
-      self.dependencies = hash['dependencies']
-      self.platform = hash['platform']
+      self.version = VersionKit::Version.new(hash['version'])
+      self.dependencies = hash['dependencies'].map do |(name, requirement)|
+        VersionKit::Dependency.new(name, requirement)
+      end
     end
   end
 
