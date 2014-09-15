@@ -19,6 +19,7 @@ module Resolver
 
   class TestIndex
     attr_accessor :specs
+    include ::Resolver::SpecificationProvider
 
     def initialize(fixture_name)
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
