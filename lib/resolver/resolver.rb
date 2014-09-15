@@ -43,7 +43,7 @@ module Resolver
 
         @ended_at = Time.now
 
-        Result.new([], {})
+        Result.new(activated, [])
       end
 
       private
@@ -80,17 +80,23 @@ module Resolver
       end
 
       def attempt_to_activate(requested_spec, activated)
-        existing_spec = activated[requested_spec.name]
+        requested_name = specification_provider.name_for_specification(requested_spec)
+        existing_spec = activated[requested_name]
         if existing_spec
-
+          return false
+        else
+          specs = search_for(requested_spec)
+          activate_spec(specs.last, activated)
+          return true
         end
       end
 
-      def activate_spec(_spec_to_activate, _activated)
+      def activate_spec(spec_to_activate, activated)
+        activated[specification_provider.name_for_specification(spec_to_activate)] = spec_to_activate
       end
 
-      def search_for(spec_name)
-        specification_provider.search_for(spec_name)
+      def search_for(dependency)
+        specification_provider.search_for(dependency)
       end
 
       def possibilities_for_state?(state)

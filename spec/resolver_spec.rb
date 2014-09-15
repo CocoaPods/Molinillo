@@ -16,6 +16,12 @@ module Resolver
         VersionKit::Dependency.new(name, requirement)
       end
     end
+
+    def ==(other)
+      self.name == other.name &&
+        self.version == other.version &&
+        self.dependencies == other.dependencies
+    end
   end
 
   class TestIndex
@@ -24,12 +30,24 @@ module Resolver
 
     def initialize(fixture_name)
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
-        self.specs = JSON.load(fixture).reduce({}) do |specs_by_name, (name, versions)|
+        self.specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
           specs_by_name.tap do |specs|
             specs[name] = versions.map { |s| TestSpecification.new s }
           end
         end
       end
+    end
+
+    def requirement_satisfied_by?(requirement, activated, spec)
+      requirement.satisfied_by?(spec.version)
+    end
+
+    def search_for(dependency)
+      specs[dependency.name]
+    end
+
+    def name_for_specification(spec)
+      spec.name
     end
   end
 
@@ -44,7 +62,10 @@ module Resolver
           self.requested = test_case['requested'].map do |(name, reqs)|
             VersionKit::Dependency.new name, reqs.split(/\w/)
           end
-          self.result = Result.new(test_case['resolved'], test_case['conflicts'])
+          resolved = test_case['resolved'].map do |r|
+            [r['name'], TestSpecification.new(r)]
+          end
+          self.result = Result.new(Hash[resolved], test_case['conflicts'])
           self.index = TestIndex.new(test_case['index'] || 'awesome')
         end
       end
@@ -60,7 +81,8 @@ module Resolver
       Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map do |fixture|
         test_case = TestCase.new(fixture)
         it test_case.name do
-          test_case.resolver.resolve(test_case.requested).should.equal test_case.result
+          test_case.resolver.resolve(test_case.requested).should.
+            equal test_case.result
         end
       end
     end
