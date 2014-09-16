@@ -18,13 +18,12 @@ module Resolver
     class Resolution
       require 'set'
 
-      attr_reader :specification_provider, :resolver_ui, :base
+      attr_reader :specification_provider, :resolver_ui
 
-      def initialize(specification_provider, resolver_ui, requested, base)
+      def initialize(specification_provider, resolver_ui, requested)
         @specification_provider = specification_provider
         @resolver_ui = resolver_ui
         @requested = requested
-        @base = base
         @errors = []
         @conflicts = Set.new
         @iteration_counter = 0
@@ -127,11 +126,10 @@ module Resolver
       end
     end
 
-    def resolve(requested, base = {})
+    def resolve(requested)
       Resolution.new(specification_provider,
                      resolver_ui,
-                     requested,
-                     base).
+                     requested).
         resolve
     end
   end
