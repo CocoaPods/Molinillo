@@ -46,10 +46,6 @@ module Resolver
     end
 
     def add_edge(origin, destination)
-      raise ArgumentError, 'Origin must be a vertex in this dependency graph' unless
-        origin && origin.graph == self
-      raise ArgumentError, 'Destination must be a vertex in this dependency graph' unless
-       destination && destination.graph == self
       if origin == destination || destination.path_to?(origin)
         raise CircularDependencyError.new(origin.payload, destination.payload)
       end
