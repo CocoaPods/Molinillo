@@ -1,4 +1,5 @@
 require 'resolver/result'
+require 'resolver/dependency_graph'
 
 module Resolver
   # Features
@@ -31,19 +32,19 @@ module Resolver
 
       def resolve
         @started_at = Time.now
-        activated = {}
+        activated = DependencyGraph.new
 
         until requested.empty?
           indicate_progress
 
-          self.requested = requested.sort
+          self.requested = specification_provider.sort_dependencies(requested)
 
           attempt_to_activate(requested.shift, activated)
         end
 
         @ended_at = Time.now
 
-        Result.new(activated, [])
+        Result.new(activated, conflicts)
       end
 
       private
@@ -56,6 +57,11 @@ module Resolver
       attr_accessor :started_at
       attr_accessor :ended_at
       attr_accessor :requested
+
+      def required_by(object)
+        @required_by ||= Hash.new([])
+        @required_by[object]
+      end
 
       def indicate_progress
         @iteration_counter += 1
@@ -81,18 +87,39 @@ module Resolver
 
       def attempt_to_activate(requested_spec, activated)
         requested_name = specification_provider.name_for_specification(requested_spec)
-        existing_spec = activated[requested_name]
+        existing_node = activated.vertex_named(requested_name)
+        existing_spec = existing_node.paylaod if existing_node
         if existing_spec
-          return false
+          false
         else
           specs = search_for(requested_spec)
-          activate_spec(specs.last, activated)
-          return true
+          satisfied_spec = specs.reverse_each.find do |s|
+            specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
+          end
+          activate_spec(
+            satisfied_spec,
+            required_by(requested_spec),
+            activated,
+          )
+          true
         end
       end
 
-      def activate_spec(spec_to_activate, activated)
-        activated[specification_provider.name_for_specification(spec_to_activate)] = spec_to_activate
+      def activate_spec(spec_to_activate, required_by, activated)
+        name = specification_provider.name_for_specification(spec_to_activate)
+        parent_nodes = required_by.map { |rb| activated.vertex_named(rb) }
+        if parent_nodes.any?
+          vertex = activated.add_vertex(name, spec_to_activate)
+          parent_nodes.each do |parent_node|
+            activated.add_edge(parent_node, vertex)
+          end
+        else
+          activated.add_root_vertex(name, spec_to_activate)
+        end
+
+        nested_dependencies = specification_provider.dependencies_for(spec_to_activate)
+        nested_dependencies.each { |d| required_by(d) << name }
+        requested.unshift(*nested_dependencies)
       end
 
       def search_for(dependency)

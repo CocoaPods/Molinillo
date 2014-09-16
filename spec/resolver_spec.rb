@@ -43,11 +43,24 @@ module Resolver
     end
 
     def search_for(dependency)
-      specs[dependency.name]
+      includes_pre_release = dependency.requirement_list.requirements.any? do |r|
+        VersionKit::Version.new(r.reference_version).pre_release?
+      end
+      specs[dependency.name].reject do |spec|
+        includes_pre_release ? false : spec.version.pre_release?
+      end
     end
 
     def name_for_specification(spec)
       spec.name
+    end
+
+    def dependencies_for(dependency)
+      dependency.dependencies
+    end
+
+    def sort_dependencies(dependencies)
+      dependencies.sort { |x, y| x.name <=> y.name }
     end
   end
 
@@ -59,14 +72,30 @@ module Resolver
       File.open(fixture_path) do |fixture|
         JSON.load(fixture).tap do |test_case|
           self.name = test_case['name']
+          self.index = TestIndex.new(test_case['index'] || 'awesome')
           self.requested = test_case['requested'].map do |(name, reqs)|
             VersionKit::Dependency.new name, reqs.split(/\w/)
           end
-          resolved = test_case['resolved'].map do |r|
-            [r['name'], TestSpecification.new(r)]
+          add_dependencies_to_graph = lambda do |graph, parent, hash|
+            name, version = hash['name'], VersionKit::Version.new(hash['version'])
+            dependency = index.specs[name].find { |s| s.version == version }
+            node = if parent
+                     graph.add_vertex(name, dependency).tap do |v|
+                       graph.add_edge(parent, v)
+                     end
+                   else
+                     graph.add_root_vertex(name, dependency)
+                   end
+            hash['dependencies'].each do |dep|
+              add_dependencies_to_graph.call(graph, node, dep)
+            end
           end
-          self.result = Result.new(Hash[resolved], test_case['conflicts'])
-          self.index = TestIndex.new(test_case['index'] || 'awesome')
+          resolved = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
+            graph.tap do |g|
+              add_dependencies_to_graph.call(g, nil, r)
+            end
+          end
+          self.result = Result.new(resolved, Set.new(test_case['conflicts']))
         end
       end
 
