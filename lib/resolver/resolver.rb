@@ -44,7 +44,7 @@ module Resolver
 
         @ended_at = Time.now
 
-        Result.new(activated, conflicts)
+        Result.new(activated.freeze, conflicts.freeze)
       end
 
       private
@@ -96,28 +96,20 @@ module Resolver
           satisfied_spec = specs.reverse_each.find do |s|
             specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
           end
-          activate_spec(
-            satisfied_spec,
-            required_by(requested_spec),
-            activated,
-          )
+          activate_spec(satisfied_spec, required_by(requested_spec), activated)
           true
         end
       end
 
       def activate_spec(spec_to_activate, required_by, activated)
         name = specification_provider.name_for_specification(spec_to_activate)
-        parent_nodes = required_by.map { |rb| activated.vertex_named(rb) }
-        if parent_nodes.any?
-          vertex = activated.add_vertex(name, spec_to_activate)
-          parent_nodes.each do |parent_node|
-            activated.add_edge(parent_node, vertex)
-          end
-        else
-          activated.add_root_vertex(name, spec_to_activate)
-        end
+        activated.add_child_vertex(name, spec_to_activate, required_by)
+        require_nested_dependencies_for(spec_to_activate)
+      end
 
-        nested_dependencies = specification_provider.dependencies_for(spec_to_activate)
+      def require_nested_dependencies_for(activated_spec)
+        name = specification_provider.name_for_specification(activated_spec)
+        nested_dependencies = specification_provider.dependencies_for(activated_spec)
         nested_dependencies.each { |d| required_by(d) << name }
         requested.unshift(*nested_dependencies)
       end

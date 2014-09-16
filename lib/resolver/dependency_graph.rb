@@ -33,6 +33,18 @@ module Resolver
       root_vertices == other.root_vertices
     end
 
+    def add_child_vertex(name, payload, parent_names)
+      parent_nodes = parent_names.map { |n| vertex_named(n) }
+      if parent_nodes.any?
+        vertex = add_vertex(name, payload)
+        parent_nodes.each do |parent_node|
+          add_edge(parent_node, vertex)
+        end
+      else
+        add_root_vertex(name, payload)
+      end
+    end
+
     def add_vertex(name, payload)
       Vertex.new(self, name, payload).tap { |v| vertices[name] = v }
     end
