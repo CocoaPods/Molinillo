@@ -20,9 +20,9 @@ module Resolver
     #
     def initialize
       require 'set'
-      @vertices = Set.new
+      @vertices = {}
       @edges = Set.new
-      @root_vertices = Set.new
+      @root_vertices = {}
     end
 
     def inspect
@@ -34,15 +34,15 @@ module Resolver
     end
 
     def add_vertex(name, payload)
-      Vertex.new(self, name, payload).tap { |v| vertices << v }
+      Vertex.new(self, name, payload).tap { |v| vertices[name] = v }
     end
 
     def add_root_vertex(name, payload)
-      add_vertex(name, payload).tap { |v| root_vertices << v }
+      add_vertex(name, payload).tap { |v| root_vertices[name] = v }
     end
 
     def vertex_named(name)
-      vertices.find { |v| v.name == name }
+      vertices[name]
     end
 
     def add_edge(origin, destination)
