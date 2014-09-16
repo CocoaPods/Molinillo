@@ -92,13 +92,17 @@ module Resolver
         if existing_spec
           false
         else
-          specs = search_for(requested_spec)
-          satisfied_spec = specs.reverse_each.find do |s|
-            specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
-          end
-          activate_spec(satisfied_spec, required_by(requested_spec), activated)
-          true
+          attempt_to_activate_new_spec(requested_spec, activated)
         end
+      end
+
+      def attempt_to_activate_new_spec(requested_spec, activated)
+        specs = search_for(requested_spec)
+        satisfied_spec = specs.reverse_each.find do |s|
+          specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
+        end
+        activate_spec(satisfied_spec, required_by(requested_spec), activated)
+        true
       end
 
       def activate_spec(spec_to_activate, required_by, activated)
