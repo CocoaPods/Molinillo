@@ -79,7 +79,7 @@ module Resolver
           self.name = test_case['name']
           self.index = TestIndex.new(test_case['index'] || 'awesome')
           self.requested = test_case['requested'].map do |(name, reqs)|
-            VersionKit::Dependency.new name, reqs.split(/\w/)
+            VersionKit::Dependency.new name, reqs.split(',').map(&:chomp)
           end
           add_dependencies_to_graph = lambda do |graph, parent, hash|
             name = hash['name']
@@ -125,7 +125,7 @@ module Resolver
           result = test_case.resolver.resolve(test_case.requested, test_case.base)
 
           pretty_dependencies = lambda do |dg|
-            dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }
+            dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
           end
           pretty_dependencies.call(result.dependency_graph).should.
             equal pretty_dependencies.call(test_case.result.dependency_graph)

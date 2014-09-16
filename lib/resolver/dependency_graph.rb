@@ -47,14 +47,15 @@ module Resolver
     end
 
     def add_child_vertex(name, payload, parent_names)
-      parent_nodes = parent_names.map { |n| vertex_named(n) }
-      if parent_nodes.any?
-        vertex = add_vertex(name, payload)
-        parent_nodes.each do |parent_node|
-          add_edge(parent_node, vertex)
-        end
-      else
-        add_root_vertex(name, payload)
+      is_root = parent_names.include?(nil)
+      parent_nodes = parent_names.compact.map { |n| vertex_named(n) }
+      vertex = if is_root
+                 add_root_vertex(name, payload)
+               else
+                 add_vertex(name, payload)
+               end
+      parent_nodes.each do |parent_node|
+        add_edge(parent_node, vertex)
       end
     end
 

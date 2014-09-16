@@ -3,6 +3,9 @@ inherit_from: .rubocop_cocoapods.yml
 Metrics/LineLength:
   Max: 120
 
+Metrics/ClassLength:
+  Max: 150
+
 AllCops:
   Exclude:
     - 'vendor/**/*'

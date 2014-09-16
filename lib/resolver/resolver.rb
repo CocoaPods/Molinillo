@@ -34,6 +34,8 @@ module Resolver
         @started_at = Time.now
         activated = DependencyGraph.new
 
+        requested.each { |d| required_by(d) << nil }
+
         until requested.empty?
           indicate_progress
 
@@ -59,8 +61,8 @@ module Resolver
       attr_accessor :requested
 
       def required_by(object)
-        @required_by ||= Hash.new([])
-        @required_by[object]
+        @required_by ||= {}
+        @required_by[object] ||= []
       end
 
       def indicate_progress
@@ -88,11 +90,22 @@ module Resolver
       def attempt_to_activate(requested_spec, activated)
         requested_name = specification_provider.name_for_specification(requested_spec)
         existing_node = activated.vertex_named(requested_name)
-        existing_spec = existing_node.payload if existing_node
-        if existing_spec
-          false
+        if existing_node
+          attempt_to_ativate_existing_spec(requested_spec, existing_node, activated)
         else
           attempt_to_activate_new_spec(requested_name, requested_spec, activated)
+        end
+      end
+
+      def attempt_to_ativate_existing_spec(requested_spec, existing_node, activated)
+        existing_spec = existing_node.payload
+        if specification_provider.requirement_satisfied_by?(requested_spec, activated, existing_spec)
+          required_by(requested_spec).each do |r|
+            parent_node = activated.vertex_named(r)
+            activated.add_edge(parent_node, existing_node)
+          end
+        else
+
         end
       end
 
