@@ -39,7 +39,7 @@ module Resolver
     end
 
     def inspect
-      "DependencyGraph:#{vertices.inspect}"
+      "DependencyGraph:#{vertices.values.inspect}"
     end
 
     def ==(other)
@@ -68,6 +68,10 @@ module Resolver
 
     def vertex_named(name)
       vertices[name]
+    end
+
+    def root_vertex_named(name)
+      root_vertices[name]
     end
 
     def add_edge(origin, destination)

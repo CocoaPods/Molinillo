@@ -39,7 +39,12 @@ module Resolver
     end
 
     def requirement_satisfied_by?(requirement, _activated, spec)
-      requirement.satisfied_by?(spec.version)
+      case requirement
+      when TestSpecification
+        VersionKit::Dependency.new(requirement.name, requirement.version).satisfied_by?(spec.version)
+      when VersionKit::Dependency
+        requirement.satisfied_by?(spec.version)
+      end
     end
 
     def search_for(dependency)
@@ -65,7 +70,7 @@ module Resolver
   end
 
   class TestCase
-    attr_accessor :name, :requested, :resolver, :result, :index
+    attr_accessor :name, :requested, :base, :resolver, :result, :index
 
     # rubocop:disable Metrics/MethodLength
     def initialize(fixture_path)
@@ -77,7 +82,9 @@ module Resolver
             VersionKit::Dependency.new name, reqs.split(/\w/)
           end
           add_dependencies_to_graph = lambda do |graph, parent, hash|
-            name, version = hash['name'], VersionKit::Version.new(hash['version'])
+            name = hash['name']
+            version = VersionKit::Version.new(hash['version'])
+            # requirement = VersionKit::Requirement.new(hash['requirement'])
             dependency = index.specs[name].find { |s| s.version == version }
             node = if parent
                      graph.add_vertex(name, dependency).tap do |v|
@@ -91,6 +98,11 @@ module Resolver
             end
           end
           resolved = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
+            graph.tap do |g|
+              add_dependencies_to_graph.call(g, nil, r)
+            end
+          end
+          self.base = test_case['base'].reduce(DependencyGraph.new) do |graph, r|
             graph.tap do |g|
               add_dependencies_to_graph.call(g, nil, r)
             end
@@ -110,8 +122,17 @@ module Resolver
       Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map do |fixture|
         test_case = TestCase.new(fixture)
         it test_case.name do
-          test_case.resolver.resolve(test_case.requested).should.
-            equal test_case.result
+          result = test_case.resolver.resolve(test_case.requested, test_case.base)
+
+          pretty_dependencies = lambda do |dg|
+            dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }
+          end
+          pretty_dependencies.call(result.dependency_graph).should.
+            equal pretty_dependencies.call(test_case.result.dependency_graph)
+
+          result.conflicts.should.equal test_case.result.conflicts
+
+          result.should.equal test_case.result
         end
       end
     end

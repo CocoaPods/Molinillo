@@ -18,12 +18,13 @@ module Resolver
     class Resolution
       require 'set'
 
-      attr_reader :specification_provider, :resolver_ui
+      attr_reader :specification_provider, :resolver_ui, :base
 
-      def initialize(specification_provider, resolver_ui, requested)
+      def initialize(specification_provider, resolver_ui, requested, base)
         @specification_provider = specification_provider
         @resolver_ui = resolver_ui
         @requested = requested
+        @base = base
         @errors = []
         @conflicts = Set.new
         @iteration_counter = 0
@@ -91,21 +92,29 @@ module Resolver
         if existing_spec
           false
         else
-          attempt_to_activate_new_spec(requested_spec, activated)
+          attempt_to_activate_new_spec(requested_name, requested_spec, activated)
         end
       end
 
-      def attempt_to_activate_new_spec(requested_spec, activated)
+      def attempt_to_activate_new_spec(name, requested_spec, activated)
         specs = search_for(requested_spec)
         satisfied_spec = specs.reverse_each.find do |s|
-          specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
+          locked_spec = explicitly_locked_spec_named(name)
+          requested_spec_satisfied = specification_provider.requirement_satisfied_by?(requested_spec, activated, s)
+          locked_spec_satisfied =
+            !locked_spec || specification_provider.requirement_satisfied_by?(locked_spec, activated, s)
+          requested_spec_satisfied && locked_spec_satisfied
         end
-        activate_spec(satisfied_spec, required_by(requested_spec), activated)
+        activate_spec(name, satisfied_spec, required_by(requested_spec), activated)
         true
       end
 
-      def activate_spec(spec_to_activate, required_by, activated)
-        name = specification_provider.name_for_specification(spec_to_activate)
+      def explicitly_locked_spec_named(name)
+        vertex = base.root_vertex_named(name)
+        vertex.payload if vertex
+      end
+
+      def activate_spec(name, spec_to_activate, required_by, activated)
         activated.add_child_vertex(name, spec_to_activate, required_by)
         require_nested_dependencies_for(spec_to_activate)
       end
@@ -126,10 +135,11 @@ module Resolver
       end
     end
 
-    def resolve(requested)
+    def resolve(requested, base)
       Resolution.new(specification_provider,
                      resolver_ui,
-                     requested).
+                     requested,
+                     base).
         resolve
     end
   end
