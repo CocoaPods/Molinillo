@@ -88,7 +88,7 @@ module Resolver
       def attempt_to_activate(requested_spec, activated)
         requested_name = specification_provider.name_for_specification(requested_spec)
         existing_node = activated.vertex_named(requested_name)
-        existing_spec = existing_node.paylaod if existing_node
+        existing_spec = existing_node.payload if existing_node
         if existing_spec
           false
         else
