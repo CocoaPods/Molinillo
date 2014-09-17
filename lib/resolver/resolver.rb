@@ -1,4 +1,3 @@
-require 'resolver/result'
 require 'resolver/dependency_graph'
 
 module Resolver
@@ -26,7 +25,6 @@ module Resolver
         @requested = requested
         @base = base
         @errors = []
-        @conflicts = Set.new
         @iteration_counter = 0
       end
 
@@ -46,7 +44,7 @@ module Resolver
 
         @ended_at = Time.now
 
-        Result.new(activated.freeze, conflicts.freeze)
+        activated.freeze
       end
 
       private

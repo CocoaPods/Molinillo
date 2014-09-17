@@ -4,15 +4,6 @@ module Resolver
 
     attr_reader :root_vertices, :vertices, :edges
 
-    class CircularDependencyError < StandardError
-      attr_reader :dependencies
-
-      def initialize(*dependencies)
-        @dependencies = dependencies
-        super "There is a circular dependency between #{dependencies * ' and '}"
-      end
-    end
-
     #
     # Create a new Directed Acyclic Graph
     #
@@ -77,7 +68,7 @@ module Resolver
 
     def add_edge(origin, destination)
       if origin == destination || destination.path_to?(origin)
-        raise CircularDependencyError.new(origin.payload, destination.payload)
+        raise CircularDependencyError.new(origin, destination)
       end
       Edge.new(origin, destination).tap { |e| edges << e }
     end

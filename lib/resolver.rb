@@ -1,4 +1,5 @@
 require 'resolver/gem_metadata'
+require 'resolver/errors'
 require 'resolver/resolver'
 require 'resolver/ui'
 require 'resolver/specification_provider'

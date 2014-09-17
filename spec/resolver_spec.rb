@@ -70,7 +70,7 @@ module Resolver
   end
 
   class TestCase
-    attr_accessor :name, :requested, :base, :resolver, :result, :index
+    attr_accessor :name, :requested, :base, :conflicts, :resolver, :result, :index
 
     # rubocop:disable Metrics/MethodLength
     def initialize(fixture_path)
@@ -97,7 +97,7 @@ module Resolver
               add_dependencies_to_graph.call(graph, node, dep)
             end
           end
-          resolved = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
+          self.result = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
             graph.tap do |g|
               add_dependencies_to_graph.call(g, nil, r)
             end
@@ -107,7 +107,7 @@ module Resolver
               add_dependencies_to_graph.call(g, nil, r)
             end
           end
-          self.result = Result.new(resolved, Set.new(test_case['conflicts']))
+          self.conflicts = test_case['conflicts'].to_set
         end
       end
 
@@ -122,17 +122,23 @@ module Resolver
       Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map do |fixture|
         test_case = TestCase.new(fixture)
         it test_case.name do
-          result = test_case.resolver.resolve(test_case.requested, test_case.base)
+          resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
 
-          pretty_dependencies = lambda do |dg|
-            dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
+          if test_case.conflicts.any?
+            should.raise ResolverError do
+              resolve.call
+            end.dependencies.map(&:name).to_set.should.equal test_case.conflicts
+          else
+            result = resolve.call
+
+            pretty_dependencies = lambda do |dg|
+              dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
+            end
+            pretty_dependencies.call(result).should.
+              equal pretty_dependencies.call(test_case.result)
+
+            result.should.equal test_case.result
           end
-          pretty_dependencies.call(result.dependency_graph).should.
-            equal pretty_dependencies.call(test_case.result.dependency_graph)
-
-          result.conflicts.should.equal test_case.result.conflicts
-
-          result.should.equal test_case.result
         end
       end
     end
