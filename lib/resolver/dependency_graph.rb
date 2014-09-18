@@ -87,7 +87,7 @@ module Resolver
       end
 
       def incoming_edges
-        graph.edges.select { |e| e.destination..shallow_eql?(self) }
+        graph.edges.select { |e| e.destination.shallow_eql?(self) }
       end
 
       def predecessors
