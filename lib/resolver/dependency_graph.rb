@@ -23,7 +23,7 @@ module Resolver
           hash[name] = vertex.dup.tap { |v| v.graph = self }
         end
       end
-      @root_vertices = vertices.select { |v| v.predecessors.empty? }
+      @root_vertices = vertices.select { |n, v| v.predecessors.empty? }
       @edges = other.edges.map do |edge|
         Edge.new vertex_named(edge.origin.name), vertex_named(edge.destination.name)
       end
