@@ -37,7 +37,8 @@ module Resolver
       private
 
       def resolution_start
-        debug { "starting resolution (#{@started_at = Time.now})" }
+        @started_at = Time.now
+        debug { "starting resolution (#{@started_at})" }
       end
 
       def resolution_end
