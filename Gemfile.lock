@@ -1,6 +1,7 @@
 GIT
   remote: https://github.com/CocoaPods/VersionKit.git
-  revision: 1cbe3599cdbcc1ad3fe955f7ac0ee94898636211
+  revision: 0571039d38ee54510b02a1132efabae317ecd1a3
+  branch: bugfix/optimistic-operator
   specs:
     version_kit (0.0.1)
 

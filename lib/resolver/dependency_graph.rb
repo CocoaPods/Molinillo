@@ -40,11 +40,12 @@ module Resolver
     def add_child_vertex(name, payload, parent_names)
       is_root = parent_names.include?(nil)
       parent_nodes = parent_names.compact.map { |n| vertex_named(n) }
-      vertex = if is_root
-                 add_root_vertex(name, payload)
-               else
-                 add_vertex(name, payload)
-               end
+      vertex = vertex_named(name) || if is_root
+                                       add_root_vertex(name, payload)
+                                     else
+                                       add_vertex(name, payload)
+                                     end
+      vertex.payload ||= payload
       parent_nodes.each do |parent_node|
         add_edge(parent_node, vertex)
       end
@@ -74,7 +75,7 @@ module Resolver
     end
 
     class Vertex
-      attr_reader :graph, :name, :payload
+      attr_accessor :graph, :name, :payload
 
       def initialize(graph, name, payload)
         @graph = graph
@@ -91,11 +92,11 @@ module Resolver
       end
 
       def predecessors
-        incoming_edges.map(&:origin).uniq
+        incoming_edges.map(&:origin).to_set
       end
 
       def successors
-        outgoing_edges.map(&:destination).uniq
+        outgoing_edges.map(&:destination).to_set
       end
 
       def inspect
@@ -108,7 +109,8 @@ module Resolver
       end
 
       def shallow_eql?(other)
-        name == other.name &&
+        other &&
+          name == other.name &&
           payload == other.payload
       end
 

@@ -43,6 +43,7 @@ module Resolver
       when TestSpecification
         VersionKit::Dependency.new(requirement.name, requirement.version).satisfied_by?(spec.version)
       when VersionKit::Dependency
+        p requirement
         requirement.satisfied_by?(spec.version)
       end
     end
@@ -56,8 +57,9 @@ module Resolver
       end
     end
 
-    def name_for_specification(spec)
-      spec.name
+    def name_for_dependency(dependency)
+      raise 'hell' unless dependency
+      dependency.name
     end
 
     def dependencies_for(dependency)
@@ -84,7 +86,6 @@ module Resolver
           add_dependencies_to_graph = lambda do |graph, parent, hash|
             name = hash['name']
             version = VersionKit::Version.new(hash['version'])
-            # requirement = VersionKit::Requirement.new(hash['requirement'])
             dependency = index.specs[name].find { |s| s.version == version }
             node = if parent
                      graph.add_vertex(name, dependency).tap do |v|
@@ -124,6 +125,8 @@ module Resolver
         it test_case.name do
           resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
 
+
+
           if test_case.conflicts.any?
             should.raise ResolverError do
               resolve.call
@@ -132,7 +135,7 @@ module Resolver
             result = resolve.call
 
             pretty_dependencies = lambda do |dg|
-              dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
+              dg.vertices.values.map{ |v| "#{v.payload.name} (#{v.payload.version})" }.sort
             end
             pretty_dependencies.call(result).should.
               equal pretty_dependencies.call(test_case.result)

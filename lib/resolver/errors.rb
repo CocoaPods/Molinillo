@@ -14,4 +14,11 @@ module Resolver
         *nodes.map(&:payload)
     end
   end
+
+  class VersionConflict < ResolverError
+    def initialize(*dependencies)
+      super "There is a version conflict between #{dependencies.to_s * ' and '}",
+        *dependencies
+    end
+  end
 end

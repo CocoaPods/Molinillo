@@ -12,8 +12,8 @@ module Resolver
       true
     end
 
-    def name_for_specification(spec)
-      spec.inspect
+    def name_for_dependency(dependency)
+      dependency.inspect
     end
 
     def sort_dependencies(dependencies)
