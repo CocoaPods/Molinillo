@@ -78,7 +78,7 @@ module Resolver
           initial_requirement,
           search_for(initial_requirement),
           0,
-          Set.new,
+          Set.new
         )
       end
 
@@ -165,16 +165,15 @@ module Resolver
 
       def push_state_for_new_requirements(new_requirements)
         new_requirement = new_requirements.shift
-        new_state = DependencyState.new(
+        states.push DependencyState.new(
           new_requirement ? name_for(new_requirement) : '',
           new_requirements,
           activated.dup,
           new_requirement,
           new_requirement ? search_for(new_requirement) : [],
           state.depth + 1,
-          Set.new,
+          Set.new
         )
-        states.push new_state
       end
 
       def search_for(dependency)
