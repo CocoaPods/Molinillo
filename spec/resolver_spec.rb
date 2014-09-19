@@ -7,6 +7,8 @@ module Resolver
   FIXTURE_INDEX_DIR = FIXTURE_DIR + 'index'
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'
 
+  class TestUI; include UI; end
+
   class TestSpecification
     attr_accessor :name, :version, :dependencies
     def initialize(hash)
@@ -21,6 +23,10 @@ module Resolver
       name == other.name &&
         version == other.version &&
         dependencies == other.dependencies
+    end
+
+    def to_s
+      "#{name} (#{version})"
     end
   end
 
@@ -43,7 +49,6 @@ module Resolver
       when TestSpecification
         VersionKit::Dependency.new(requirement.name, requirement.version).satisfied_by?(spec.version)
       when VersionKit::Dependency
-        p requirement
         requirement.satisfied_by?(spec.version)
       end
     end
@@ -58,7 +63,6 @@ module Resolver
     end
 
     def name_for_dependency(dependency)
-      raise 'hell' unless dependency
       dependency.name
     end
 
@@ -112,7 +116,7 @@ module Resolver
         end
       end
 
-      self.resolver = Resolver.new(index, UI)
+      self.resolver = Resolver.new(index, TestUI.new)
     end
     # rubocop:enable Metrics/MethodLength
   end
@@ -125,8 +129,6 @@ module Resolver
         it test_case.name do
           resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
 
-
-
           if test_case.conflicts.any?
             should.raise ResolverError do
               resolve.call
@@ -135,7 +137,7 @@ module Resolver
             result = resolve.call
 
             pretty_dependencies = lambda do |dg|
-              dg.vertices.values.map{ |v| "#{v.payload.name} (#{v.payload.version})" }.sort
+              dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
             end
             pretty_dependencies.call(result).should.
               equal pretty_dependencies.call(test_case.result)

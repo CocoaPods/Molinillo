@@ -5,7 +5,7 @@ module Resolver
     end
 
     def debug
-      if ENV['DEBUG_RESOLVER']
+      if ENV['CP_RESOLVER']
         debug_info = yield
         debug_info = debug_info.inspect unless debug_info.is_a?(String)
         STDERR.puts debug_info
