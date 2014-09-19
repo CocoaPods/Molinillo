@@ -6,7 +6,7 @@ module Resolver
     :requirement,
     :possibilities,
     :depth,
-    :conflicts,
+    :conflicts
   )
 
   class DependencyState < ResolutionState
@@ -18,7 +18,7 @@ module Resolver
         requirement,
         [possibilities.pop],
         depth + 1,
-        conflicts.dup,
+        conflicts.dup
       )
     end
   end
