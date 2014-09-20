@@ -38,7 +38,7 @@ module Resolver
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
         self.specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
           specs_by_name.tap do |specs|
-            specs[name] = versions.map { |s| TestSpecification.new s }
+            specs[name] = versions.map { |s| TestSpecification.new s }.sort { |x, y| x.version <=> y.version }
           end
         end
       end

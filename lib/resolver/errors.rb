@@ -17,7 +17,7 @@ module Resolver
 
   class VersionConflict < ResolverError
     def initialize(*dependencies)
-      super "There is a version conflict between #{dependencies.to_s * ' and '}",
+      super "There is a version conflict between #{dependencies * ' and '}",
         *dependencies
     end
   end

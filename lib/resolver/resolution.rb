@@ -20,13 +20,15 @@ module Resolver
         while state
           break unless state.requirements.any? || state.requirement
           indicate_progress
-          debug(depth) { 'creating possibility state' }
-          states.push(state.pop_possibility_state) unless state.is_a? PossibilityState
+          unless state.is_a? PossibilityState
+            debug(depth) { "creating possibility state (#{possibilities.count} remaining)" }
+            state.pop_possibility_state.tap { |s| states.push(s) if s }
+          end
           process_topmost_state
         end
 
         if states.empty?
-          raise VersionConflict
+          raise VersionConflict, ''
         end
 
         resolution_end
@@ -61,7 +63,13 @@ module Resolver
       end
 
       def process_topmost_state
-        possibility ? attempt_to_activate(possibility) : unwind_for_conflict
+        if possibility
+          attempt_to_activate(possibility)
+        else
+          until possibility && state.is_a?(DependencyState)
+            unwind_for_conflict
+          end
+        end
       end
 
       def possibility
@@ -125,10 +133,11 @@ module Resolver
 
       def attempt_to_ativate_existing_spec(requested_spec, existing_node)
         existing_spec = existing_node.payload
-        if specification_provider.requirement_satisfied_by?(requested_spec, activated, existing_spec)
+        if specification_provider.requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
           push_state_for_new_requirements(new_requirements)
         else
+          debug(depth) { 'Unsatisfied by existing spec' }
           unwind_for_conflict
         end
       end
