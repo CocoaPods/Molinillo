@@ -15,8 +15,6 @@ module Resolver
       def resolve
         resolution_start
 
-        states.push(initial_state)
-
         while state
           break unless state.requirements.any? || state.requirement
           indicate_progress
@@ -25,10 +23,6 @@ module Resolver
             state.pop_possibility_state.tap { |s| states.push(s) if s }
           end
           process_topmost_state
-        end
-
-        if states.empty?
-          raise VersionConflict, ''
         end
 
         resolution_end
@@ -40,10 +34,15 @@ module Resolver
 
       def resolution_start
         @started_at = Time.now
+
+        states.push(initial_state)
+
         debug { "starting resolution (#{@started_at})" }
       end
 
       def resolution_end
+        raise VersionConflict if states.empty?
+
         debug { "finished resolution (took #{(@ended_at = Time.now) - @started_at} seconds) (#{@ended_at})" }
         debug { 'unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
         debug { 'activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
@@ -64,11 +63,9 @@ module Resolver
 
       def process_topmost_state
         if possibility
-          attempt_to_activate(possibility)
+          attempt_to_activate
         else
-          until possibility && state.is_a?(DependencyState)
-            unwind_for_conflict
-          end
+          unwind_for_conflict until possibility && state.is_a?(DependencyState)
         end
       end
 
@@ -121,28 +118,28 @@ module Resolver
         resolver_ui.debug(depth, &block)
       end
 
-      def attempt_to_activate(requested_spec)
-        debug(depth) { 'attempting to activate ' + name + ' at ' + requested_spec.to_s }
+      def attempt_to_activate
+        debug(depth) { 'attempting to activate ' + name + ' at ' + possibility.to_s }
         existing_node = activated.vertex_named(name)
         if existing_node && existing_node.payload
-          attempt_to_ativate_existing_spec(requested_spec, existing_node)
+          attempt_to_ativate_existing_spec(existing_node)
         else
-          attempt_to_activate_new_spec(requested_spec)
+          attempt_to_activate_new_spec
         end
       end
 
-      def attempt_to_ativate_existing_spec(requested_spec, existing_node)
+      def attempt_to_ativate_existing_spec(existing_node)
         existing_spec = existing_node.payload
         if specification_provider.requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
           push_state_for_new_requirements(new_requirements)
         else
           debug(depth) { 'Unsatisfied by existing spec' }
-          unwind_for_conflict
+          return unwind_for_conflict
         end
       end
 
-      def attempt_to_activate_new_spec(requested_spec)
+      def attempt_to_activate_new_spec
         satisfied = begin
           locked_spec = explicitly_locked_spec_named(name)
           requested_spec_satisfied =
@@ -154,7 +151,7 @@ module Resolver
           requested_spec_satisfied && locked_spec_satisfied
         end
         if satisfied
-          activate_spec(requested_spec)
+          activate_spec
         else
           unwind_for_conflict
         end
@@ -165,10 +162,10 @@ module Resolver
         vertex.payload if vertex
       end
 
-      def activate_spec(spec_to_activate)
-        debug(depth) { 'activated ' + name_for(spec_to_activate) + ' at ' + spec_to_activate.to_s }
-        activated.vertex_named(name_for(spec_to_activate)).payload = spec_to_activate
-        require_nested_dependencies_for(spec_to_activate)
+      def activate_spec
+        debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
+        activated.vertex_named(name_for(possibility)).payload = possibility
+        require_nested_dependencies_for(possibility)
       end
 
       def require_nested_dependencies_for(activated_spec)
