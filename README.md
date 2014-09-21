@@ -10,15 +10,21 @@ A generic dependency-resolution implementation.
 
 Add this line to your application's Gemfile:
 
-    gem 'Resolver', :git => 'https://github.com/CocoaPods/Resolver'
+```ruby
+gem 'Resolver', :git => 'https://github.com/CocoaPods/Resolver'
+```
 
 And then execute:
 
-    $ bundle install
+```bash
+$ bundle install
+```
 
 Or install it yourself as:
 
-    $ gem install Resolver
+```bash
+$ gem install Resolver
+```
 
 ## Usage
 
