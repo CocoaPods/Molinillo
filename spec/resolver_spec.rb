@@ -62,7 +62,7 @@ module Resolver
       end
     end
 
-    def name_for_dependency(dependency)
+    def name_for(dependency)
       dependency.name
     end
 

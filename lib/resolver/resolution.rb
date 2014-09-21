@@ -13,7 +13,7 @@ module Resolver
       end
 
       def resolve
-        resolution_start
+        start_resolution
 
         while state
           break unless state.requirements.any? || state.requirement
@@ -25,14 +25,14 @@ module Resolver
           process_topmost_state
         end
 
-        resolution_end
+        end_resolution
 
         activated.freeze
       end
 
       private
 
-      def resolution_start
+      def start_resolution
         @started_at = Time.now
 
         states.push(initial_state)
@@ -40,7 +40,7 @@ module Resolver
         debug { "starting resolution (#{@started_at})" }
       end
 
-      def resolution_end
+      def end_resolution
         raise VersionConflict if states.empty?
 
         debug { "finished resolution (took #{(@ended_at = Time.now) - @started_at} seconds) (#{@ended_at})" }
@@ -49,6 +49,7 @@ module Resolver
       end
 
       require 'resolver/state'
+      require 'resolver/modules/specification_provider'
 
       attr_accessor :iteration_rate
       attr_accessor :started_at
@@ -58,6 +59,12 @@ module Resolver
       ResolutionState.new.members.each do |member|
         define_method member do
           state.send(member)
+        end
+      end
+
+      SpecificationProvider.instance_methods(false).each do |instance_method|
+        define_method instance_method do |*args, &block|
+          specification_provider.send(instance_method, *args, &block)
         end
       end
 
@@ -75,10 +82,6 @@ module Resolver
 
       def state
         states.last
-      end
-
-      def name_for(dependency)
-        specification_provider.name_for_dependency(dependency)
       end
 
       def initial_state
@@ -130,9 +133,9 @@ module Resolver
 
       def attempt_to_ativate_existing_spec(existing_node)
         existing_spec = existing_node.payload
-        if specification_provider.requirement_satisfied_by?(requirement, activated, existing_spec)
+        if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
-          push_state_for_new_requirements(new_requirements)
+          push_state_for_requirements(new_requirements)
         else
           debug(depth) { 'Unsatisfied by existing spec' }
           return unwind_for_conflict
@@ -142,10 +145,8 @@ module Resolver
       def attempt_to_activate_new_spec
         satisfied = begin
           locked_spec = explicitly_locked_spec_named(name)
-          requested_spec_satisfied =
-            specification_provider.requirement_satisfied_by?(requirement, activated, possibility)
-          locked_spec_satisfied =
-            !locked_spec || specification_provider.requirement_satisfied_by?(locked_spec, activated, possibility)
+          requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
+          locked_spec_satisfied = !locked_spec || requirement_satisfied_by?(locked_spec, activated, possibility)
           debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
           debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
           requested_spec_satisfied && locked_spec_satisfied
@@ -171,14 +172,13 @@ module Resolver
       def require_nested_dependencies_for(activated_spec)
         debug(depth) { 'requiring nested dependencies' }
 
-        nested_dependencies = specification_provider.dependencies_for(activated_spec)
+        nested_dependencies = dependencies_for(activated_spec)
         nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)] }
 
-        new_requirements = requirements + nested_dependencies
-        push_state_for_new_requirements(new_requirements)
+        push_state_for_requirements(requirements + nested_dependencies)
       end
 
-      def push_state_for_new_requirements(new_requirements)
+      def push_state_for_requirements(new_requirements)
         new_requirement = new_requirements.shift
         states.push DependencyState.new(
           new_requirement ? name_for(new_requirement) : '',
@@ -189,10 +189,6 @@ module Resolver
           depth,
           Set.new
         )
-      end
-
-      def search_for(dependency)
-        specification_provider.search_for(dependency)
       end
     end
   end
