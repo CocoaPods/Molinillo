@@ -13,6 +13,7 @@ if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0'
   end
   SimpleCov.start do
     add_filter '/vendor/'
+    add_filter '/lib/resolver/modules/'
   end
   CodeClimate::TestReporter.start
 end
