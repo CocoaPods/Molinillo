@@ -1,12 +1,12 @@
 module Resolver
   # A state that a {Resolution} can be in
   # @attr [String] name
-  # @attr [Array] requirements
+  # @attr [Array<Object>] requirements
   # @attr [DependencyGraph] activated
   # @attr [Object] requirement
   # @attr [Object] possibility
   # @attr [Integer] depth
-  # @attr [Object] conflicts
+  # @attr [Set<Object>] conflicts
   ResolutionState = Struct.new(
     :name,
     :requirements,

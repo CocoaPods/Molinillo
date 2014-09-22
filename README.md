@@ -28,7 +28,8 @@ $ gem install Resolver
 
 ## Usage
 
-Look at the test suite for example usage. Better documentation and examples are forthcoming.
+Look at the test suite for example usage. Better documentation and examples are
+forthcoming.
 
 ## Contributing
 

@@ -1,8 +1,27 @@
 module Resolver
   class Resolver
+    # A specific resolution from a given {Resolver}
     class Resolution
-      attr_reader :specification_provider, :resolver_ui, :base, :original_requested
+      # @return [SpecificationProvider] the provider that knows about
+      #   dependencies, requirements, specifications, versions, etc.
+      attr_reader :specification_provider
 
+      # @return [UI] the UI that knows how to communicate feedback about the
+      #   resolution process back to the user
+      attr_reader :resolver_ui
+
+      # @return [DependencyGraph] the base dependency graph to which
+      #   dependencies should be 'locked'
+      attr_reader :base
+
+      # @return [Array] the dependencies that were explicitly required
+      attr_reader :original_requested
+
+      # @param [SpecificationProvider] specification_provider
+      #   see {#specification_provider}
+      # @param [UI] resolver_ui see {#resolver_ui}
+      # @param [Array] requested see {#original_requested}
+      # @param [DependencyGraph] base see {#base}
       def initialize(specification_provider, resolver_ui, requested, base)
         @specification_provider = specification_provider
         @resolver_ui = resolver_ui
@@ -12,6 +31,11 @@ module Resolver
         @iteration_counter = 0
       end
 
+      # Resolves the {#original_requested} dependencies into a full dependency
+      #   graph
+      # @raise [ResolverError] if successful resolution is impossible
+      # @return [DependencyGraph] the dependency graph of successfully resolved
+      #   dependencies
       def resolve
         start_resolution
 
@@ -32,6 +56,8 @@ module Resolver
 
       private
 
+      # Sets up the resolution process
+      # @return [void]
       def start_resolution
         @started_at = Time.now
 
@@ -40,6 +66,8 @@ module Resolver
         debug { "starting resolution (#{@started_at})" }
       end
 
+      # Ends the resolution process
+      # @return [void]
       def end_resolution
         raise VersionConflict if states.empty?
 
@@ -51,14 +79,22 @@ module Resolver
       require 'resolver/state'
       require 'resolver/modules/specification_provider'
 
+      # @return [Integer] the number of resolver iterations in between calls to
+      #   {#resolver_ui}'s {UI#indicate_progress} method
       attr_accessor :iteration_rate
+
+      # @return [Time] the time at which resolution begain
       attr_accessor :started_at
+
+      # @return [Time] the time at which resolution finished
       attr_accessor :ended_at
+
+      # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
 
       ResolutionState.new.members.each do |member|
-        define_method member do
-          state.send(member)
+        define_method member do |*args, &block|
+          state.send(member, *args, &block)
         end
       end
 
@@ -68,6 +104,8 @@ module Resolver
         end
       end
 
+      # Processes the topmost available {RequirementState} on the stack
+      # @return [void]
       def process_topmost_state
         if possibility
           attempt_to_activate
@@ -76,16 +114,23 @@ module Resolver
         end
       end
 
+      # @return [Object] the current possibility that the resolution is trying
+      #   to activate
       def possibility
         possibilities.last
       end
 
+      # @return [RequirementState] the current state the resolution is
+      #   operating upon
       def state
         states.last
       end
 
+      # Creates the initial state for the resolution, based upon the
+      # {#requested} dependencies
+      # @return [DependencyState] the initial state for the resolution
       def initial_state
-        requirements = original_requested
+        requirements = original_requested.dup
         graph = DependencyGraph.new.tap { |dg| requirements.each { |r| dg.add_root_vertex(name_for(r), nil) } }
         initial_requirement = requirements.shift
         DependencyState.new(
@@ -99,11 +144,16 @@ module Resolver
         )
       end
 
+      # Unwinds the states stack because a conflict has been encountered
+      # @return [void]
       def unwind_for_conflict
         debug(depth) { 'Unwinding from level ' + state.depth.to_s }
+        conflicts << state.requirement if state.is_a? DependencyState
         states.pop
       end
 
+      # Indicates progress roughly once every second
+      # @return [void]
       def indicate_progress
         @iteration_counter += 1
         if iteration_rate.nil?
@@ -117,12 +167,18 @@ module Resolver
         end
       end
 
+      # Calls the {#resolver_ui}'s {UI#debug} method
+      # @param [Integer] depth the depth of the {#states} stack
+      # @param [Proc] block a block that yields a {#to_s}
+      # @return [void]
       def debug(depth = 0, &block)
         resolver_ui.debug(depth, &block)
       end
 
+      # Attempts to activate the current {#possibility}
+      # @return [void]
       def attempt_to_activate
-        debug(depth) { 'attempting to activate ' + name + ' at ' + possibility.to_s }
+        debug(depth) { 'attempting to activate ' + possibility.to_s }
         existing_node = activated.vertex_named(name)
         if existing_node && existing_node.payload
           attempt_to_ativate_existing_spec(existing_node)
@@ -131,6 +187,9 @@ module Resolver
         end
       end
 
+      # Attempts to activate the current {#possibility} (given that it has
+      # already been activated)
+      # @return [void]
       def attempt_to_ativate_existing_spec(existing_node)
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
@@ -142,6 +201,9 @@ module Resolver
         end
       end
 
+      # Attempts to activate the current {#possibility} (given that it hasn't
+      # already been activated)
+      # @return [void]
       def attempt_to_activate_new_spec
         satisfied = begin
           locked_spec = explicitly_locked_spec_named(name)
@@ -158,17 +220,27 @@ module Resolver
         end
       end
 
+      # @param [String] spec_name the spec name to search for
+      # @return [Object] the explicitly locked spec named `spec_name`, if one
+      #   is found on {#base}
       def explicitly_locked_spec_named(spec_name)
         vertex = base.root_vertex_named(spec_name)
         vertex.payload if vertex
       end
 
+      # Add the current {#possibility} to the dependency graph of the current
+      # {#state}
+      # @return [void]
       def activate_spec
         debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
         activated.vertex_named(name_for(possibility)).payload = possibility
         require_nested_dependencies_for(possibility)
       end
 
+      # Requires the dependencies that the recently activated spec has
+      # @param [Object] activated_spec the specification that has just been
+      #   activated
+      # @return [void]
       def require_nested_dependencies_for(activated_spec)
         debug(depth) { 'requiring nested dependencies' }
 
@@ -178,7 +250,12 @@ module Resolver
         push_state_for_requirements(requirements + nested_dependencies)
       end
 
+      # Pushes a new {DependencyState} that encapsulates both existing and new
+      # requirements
+      # @param [Array] new_requirements
+      # @return [void]
       def push_state_for_requirements(new_requirements)
+        new_requirements = sort_dependencies(new_requirements)
         new_requirement = new_requirements.shift
         states.push DependencyState.new(
           new_requirement ? name_for(new_requirement) : '',

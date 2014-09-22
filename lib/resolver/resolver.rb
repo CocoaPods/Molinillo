@@ -3,7 +3,7 @@ require 'resolver/dependency_graph'
 module Resolver
   # This class encapsulates a dependency resolver.
   # The resolver is responsible for determining which set of dependencies to
-  # activate, with feedback from the the
+  # activate, with feedback from the the {#specification_provider}
   #
   #
   class Resolver
