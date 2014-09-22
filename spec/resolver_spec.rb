@@ -15,7 +15,7 @@ module Resolver
       self.name = hash['name']
       self.version = VersionKit::Version.new(hash['version'])
       self.dependencies = hash['dependencies'].map do |(name, requirement)|
-        VersionKit::Dependency.new(name, requirement)
+        VersionKit::Dependency.new(name, requirement.split(',').map(&:chomp))
       end
     end
 
