@@ -31,7 +31,7 @@ module Resolver
           hash[name] = vertex.dup.tap { |v| v.graph = self }
         end
       end
-      @root_vertices = Hash[vertices.select { |_n, v| v.predecessors.empty? }]
+      @root_vertices = Hash[vertices.select { |n, _v| other.root_vertices[n] }]
       @edges = other.edges.map do |edge|
         Edge.new vertex_named(edge.origin.name), vertex_named(edge.destination.name)
       end
