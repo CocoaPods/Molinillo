@@ -69,7 +69,7 @@ module Resolver
             error = should.raise ResolverError do
               resolve.call
             end
-            
+
             names = case error
                     when CircularDependencyError
                       error.dependencies.map(&:name)

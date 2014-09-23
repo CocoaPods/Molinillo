@@ -4,7 +4,7 @@ Metrics/LineLength:
   Max: 120
 
 Metrics/ClassLength:
-  Max: 170
+  Max: 200
 
 Metrics/MethodLength:
   Max: 15
@@ -14,4 +14,7 @@ AllCops:
     - 'vendor/**/*'
 
 Style/TrailingComma:
+  Enabled: false
+
+RaiseArgs:
   Enabled: false
