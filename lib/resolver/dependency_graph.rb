@@ -138,13 +138,13 @@ module Resolver
       end
 
       # @return [Set<Vertex>] the vertices of {#graph} that have an edge with
-      #   `self` as their {Edge#origin}
+      #   `self` as their {Edge#destination}
       def predecessors
         incoming_edges.map(&:origin).to_set
       end
 
       # @return [Set<Vertex>] the vertices of {#graph} that have an edge with
-      #   `self` as their {Edge#destination}
+      #   `self` as their {Edge#origin}
       def successors
         outgoing_edges.map(&:destination).to_set
       end
