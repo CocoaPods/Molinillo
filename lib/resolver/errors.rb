@@ -1,19 +1,6 @@
 module Resolver
-  # An error that occurred during the resolution process that holds the
-  # {#dependencies} that caused the error
-  class ResolverError < StandardError
-    # [Set<Object>] the dependencies responsible for causing the error
-    attr_reader :dependencies
-
-    # @param [Array<Object>] dependencies see {#dependencies}
-    # @param [String] message an informative message that explains why the error
-    #   is being `raise`d
-    def initialize(message, *dependencies)
-      require 'set'
-      @dependencies = Set.new(dependencies)
-      super message
-    end
-  end
+  # An error that occurred during the resolution process
+  class ResolverError < StandardError; end
 
   # An error caused by attempting to fulfil a dependency that was circular
   #
@@ -21,18 +8,27 @@ module Resolver
   #   {DependencyGraph} that has a {DependencyGraph::Vertex#path_to?} an
   #   existing {DependencyGraph::Vertex}
   class CircularDependencyError < ResolverError
+    # [Set<Object>] the dependencies responsible for causing the error
+    attr_reader :dependencies
+
     # @param [Array<DependencyGraph::Vertex>] nodes the nodes in the dependency
     #   that caused the error
-    def initialize(*nodes)
-      super "There is a circular dependency between #{nodes.map(&:name) * ' and '}",
-        *nodes.map(&:payload)
+    def initialize(nodes)
+      super "There is a circular dependency between #{nodes.map(&:name) * ' and '}"
+      @dependencies = nodes.map(&:payload).to_set
     end
   end
 
+  # An error caused by conflicts in version
   class VersionConflict < ResolverError
-    def initialize(dependencies)
-      super "There is a version conflict between #{dependencies * ' and '}",
-        *dependencies
+    # @return [{String => Resolution::Conflict}] the conflicts that caused
+    #   resolution to fail
+    attr_reader :conflicts
+
+    # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
+    def initialize(conflicts)
+      super "There is a version conflict between #{conflicts.keys * ' and '}"
+      @conflicts = conflicts
     end
   end
 end

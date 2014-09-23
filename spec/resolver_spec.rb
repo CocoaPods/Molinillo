@@ -66,9 +66,17 @@ module Resolver
           resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
 
           if test_case.conflicts.any?
-            should.raise ResolverError do
+            error = should.raise ResolverError do
               resolve.call
-            end.dependencies.map(&:name).to_set.should.equal test_case.conflicts
+            end
+            
+            names = case error
+                    when CircularDependencyError
+                      error.dependencies.map(&:name)
+                    when VersionConflict
+                      error.conflicts.keys
+                    end.to_set
+            names.should.equal test_case.conflicts
           else
             result = resolve.call
 

@@ -99,7 +99,7 @@ module Resolver
     # @return [Edge] the added edge
     def add_edge(origin, destination)
       if origin == destination || destination.path_to?(origin)
-        raise CircularDependencyError.new(origin, destination)
+        raise CircularDependencyError.new([origin, destination])
       end
       Edge.new(origin, destination).tap { |e| edges << e }
     end

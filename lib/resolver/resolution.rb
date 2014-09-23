@@ -2,6 +2,18 @@ module Resolver
   class Resolver
     # A specific resolution from a given {Resolver}
     class Resolution
+      # A conflict that the resolution process encountered
+      # @attr [Object] requirement the requirement that caused the conflict
+      # @attr [Object, nil] existing the existing spec that was in conflict with
+      #   the {#possibility}
+      # @attr [Object] possibility the spec that was unable to be activated due
+      #   to a conflict
+      Conflict = Struct.new(
+        :requirement,
+        :existing,
+        :possibility
+      )
+
       # @return [SpecificationProvider] the provider that knows about
       #   dependencies, requirements, specifications, versions, etc.
       attr_reader :specification_provider
@@ -69,8 +81,6 @@ module Resolver
       # Ends the resolution process
       # @return [void]
       def end_resolution
-        raise VersionConflict if states.empty?
-
         debug { "finished resolution (took #{(@ended_at = Time.now) - @started_at} seconds) (#{@ended_at})" }
         debug { 'unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
         debug { 'activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
@@ -140,16 +150,35 @@ module Resolver
           initial_requirement,
           search_for(initial_requirement),
           0,
-          Set.new
+          {}
         )
       end
 
       # Unwinds the states stack because a conflict has been encountered
       # @return [void]
       def unwind_for_conflict
-        debug(depth) { 'Unwinding from level ' + state.depth.to_s }
-        conflicts << state.requirement if state.is_a? DependencyState
-        states.pop
+        if depth > 0
+          debug(depth) { 'Unwinding from level ' + state.depth.to_s }
+          conflicts.tap do |c|
+            states.pop
+            state.conflicts = c
+          end
+        else
+          raise VersionConflict.new(conflicts)
+        end
+      end
+
+      # @return [Conflict] a {Conflict} that reflects the failure to activate
+      #   the {#possibility} in conjunction with the current {#state}
+      def create_conflict
+        if vertex = activated.vertex_named(name)
+          existing = vertex.payload
+        end
+        conflicts[name] = Conflict.new(
+          requirement,
+          existing,
+          possibility
+        )
       end
 
       # Indicates progress roughly once every second
@@ -196,8 +225,9 @@ module Resolver
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements)
         else
+          create_conflict
           debug(depth) { 'Unsatisfied by existing spec' }
-          return unwind_for_conflict
+          unwind_for_conflict
         end
       end
 
@@ -216,6 +246,7 @@ module Resolver
         if satisfied
           activate_spec
         else
+          create_conflict
           unwind_for_conflict
         end
       end
@@ -232,6 +263,7 @@ module Resolver
       # {#state}
       # @return [void]
       def activate_spec
+        conflicts.delete(name)
         debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
         activated.vertex_named(name_for(possibility)).payload = possibility
         require_nested_dependencies_for(possibility)
@@ -264,7 +296,7 @@ module Resolver
           new_requirement,
           new_requirement ? search_for(new_requirement) : [],
           depth,
-          Set.new
+          conflicts.dup
         )
       end
     end
