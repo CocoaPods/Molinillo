@@ -82,6 +82,18 @@ module Resolver
       add_vertex(name, payload).tap { |v| root_vertices[name] = v }
     end
 
+    # Detaches the {#vertex_named} `name` {Vertex} from the graph, recursively
+    # removing any non-root vertices that were orphaned in the process
+    # @param [String] name
+    # @return [void]
+    def detach_vertex_named(name)
+      vertex = vertex_named(name)
+      successors = vertex.successors
+      vertices.delete(name)
+      edges.reject! { |e| e.origin == vertex || e.destination == vertex }
+      successors.each { |v| detach_vertex_named(v.name) unless root_vertices[v.name] || v.predecessors.any? }
+    end
+
     # @param [String] name
     # @return [Vertex,nil] the vertex with the given name
     def vertex_named(name)
