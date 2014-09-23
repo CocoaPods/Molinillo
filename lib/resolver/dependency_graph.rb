@@ -65,6 +65,7 @@ module Resolver
       parent_nodes.each do |parent_node|
         add_edge(parent_node, vertex)
       end
+      vertex
     end
 
     # @param [String] name
