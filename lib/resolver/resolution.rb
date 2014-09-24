@@ -140,7 +140,7 @@ module Resolver
       # {#requested} dependencies
       # @return [DependencyState] the initial state for the resolution
       def initial_state
-        requirements = original_requested.dup
+        requirements = sort_dependencies(original_requested.dup)
         graph = DependencyGraph.new.tap { |dg| requirements.each { |r| dg.add_root_vertex(name_for(r), nil) } }
         initial_requirement = requirements.shift
         DependencyState.new(
