@@ -1,8 +1,6 @@
 module Resolver
   module UI
-    def indicate_progress
-      STDOUT.print '.'
-    end
+    def indicate_progress; end
 
     def debug(depth = 0)
       if ENV['CP_RESOLVER']

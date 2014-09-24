@@ -18,3 +18,7 @@ Style/TrailingComma:
 
 RaiseArgs:
   Enabled: false
+
+Lint/UnusedMethodArgument:
+  Exclude:
+    - 'lib/resolver/modules/**/*'

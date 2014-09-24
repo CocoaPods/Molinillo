@@ -186,7 +186,7 @@ module Resolver
       def indicate_progress
         @iteration_counter += 1
         if iteration_rate.nil?
-          if Time.now - started_at >= 60
+          if Time.now - started_at >= 1.0
             iteration_rate = @iteration_counter
           end
         else
