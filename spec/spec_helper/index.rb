@@ -23,11 +23,9 @@ module Resolver
     end
 
     def search_for(dependency)
-      includes_pre_release = dependency.requirement_list.requirements.any? do |r|
-        VersionKit::Version.new(r.reference_version).pre_release?
-      end
+      pre_release = dependency_pre_release?(dependency)
       specs[dependency.name].reject do |spec|
-        includes_pre_release ? false : spec.version.pre_release?
+        pre_release ? false : spec.version.pre_release?
       end
     end
 
@@ -39,8 +37,23 @@ module Resolver
       dependency.dependencies
     end
 
-    def sort_dependencies(dependencies)
-      dependencies.sort { |x, y| x.name <=> y.name }
+    def sort_dependencies(dependencies, activated, conflicts)
+      dependencies.sort_by do |d|
+        [
+          activated.vertex_named(d.name).payload ? 0 : 1,
+          dependency_pre_release?(d) ? 0 : 1,
+          conflicts[d.name] ? 0 : 1,
+          specs[d.name].count,
+        ]
+      end
+    end
+
+    private
+
+    def dependency_pre_release?(dependency)
+      dependency.requirement_list.requirements.any? do |r|
+        VersionKit::Version.new(r.reference_version).pre_release?
+      end
     end
   end
 end

@@ -16,8 +16,21 @@ module Resolver
       dependency.inspect
     end
 
-    def sort_dependencies(dependencies)
-      dependencies
+    # Sort dependencies so that the ones that are easiest to resolve are first.
+    # Easiest to resolve is (usually) defined by:
+    #   1) Is this dependency already activated?
+    #   2) How relaxed are the requirements?
+    #   3) Are there any conflicts for this dependency?
+    #   4) How many possibilities are there to satisfy this dependency?
+    #
+    def sort_dependencies(dependencies, activated, conflicts)
+      dependencies.sort_by do |dependency|
+        name = name_for(dependency)
+        [
+          activated.vertex_named(name).payload ? 0 : 1,
+          conflicts[name] ? 0 : 1,
+        ]
+      end
     end
   end
 end
