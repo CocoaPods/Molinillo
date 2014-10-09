@@ -9,7 +9,7 @@ module Resolver
       # @attr [Object] possibility the spec that was unable to be activated due
       #   to a conflict
       Conflict = Struct.new(
-        :requirement,
+        :requirements,
         :existing,
         :possibility
       )
@@ -175,7 +175,7 @@ module Resolver
           existing = vertex.payload
         end
         conflicts[name] = Conflict.new(
-          requirement,
+          vertex.incoming_requirements + [requirement],
           existing,
           possibility
         )
@@ -222,6 +222,7 @@ module Resolver
       def attempt_to_ativate_existing_spec(existing_node)
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
+          existing_node.incoming_requirements << requirement
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements)
         else
@@ -265,7 +266,9 @@ module Resolver
       def activate_spec
         conflicts.delete(name)
         debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
-        activated.vertex_named(name_for(possibility)).payload = possibility
+        vertex = activated.vertex_named(name_for(possibility))
+        vertex.payload = possibility
+        vertex.incoming_requirements << requirement
         require_nested_dependencies_for(possibility)
       end
 

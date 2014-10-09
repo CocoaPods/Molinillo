@@ -129,6 +129,9 @@ module Resolver
       # @return [Object] payload the payload the vertex holds
       attr_accessor :payload
 
+      # @return [Arrary<Object>] the requirements that led this vertex
+      attr_reader :incoming_requirements
+
       # @param [DependencyGraph] graph see {#graph}
       # @param [String] name see {#name}
       # @param [Object] payload see {#payload}
@@ -136,6 +139,7 @@ module Resolver
         @graph = graph
         @name = name
         @payload = payload
+        @incoming_requirements = []
       end
 
       # @return [Array<Edge>] the edges of {#graph} that have `self` as their

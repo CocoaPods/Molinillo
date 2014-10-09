@@ -27,8 +27,8 @@ module Resolver
 
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
     def initialize(conflicts)
-      super "Unable to satisfy the following requirements:\n" \
-        "- #{conflicts.values.flatten.map { |c| "#{c.requirement}" }.join("\n")}"
+      super "Unable to satisfy the following requirements:\n\n" \
+        "#{conflicts.values.flatten.map(&:requirements).flatten.map { |r| "- `#{r}`" }.join("\n")}"
       @conflicts = conflicts
     end
   end
