@@ -27,7 +27,8 @@ module Resolver
 
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
     def initialize(conflicts)
-      super "There is a version conflict between #{conflicts.keys * ' and '}"
+      super "Unable to satisfy the following requirements:\n" \
+        "- #{conflicts.values.flatten.map { |c| "#{c.requirement}" }.join("\n")}"
       @conflicts = conflicts
     end
   end
