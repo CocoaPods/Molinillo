@@ -166,6 +166,12 @@ module Resolver
         outgoing_edges.map(&:destination).to_set
       end
 
+      # @return [Set<Vertex>] the vertices of {#graph} where `self` is an
+      #   {#ancestor?}
+      def recursive_successors
+        successors + successors.map(&:recursive_successors).reduce(Set.new, &:+)
+      end
+
       # @return [String] a string suitable for debugging
       def inspect
         "DependencyGraph::Vertex:#{name}(#{payload.inspect})"
