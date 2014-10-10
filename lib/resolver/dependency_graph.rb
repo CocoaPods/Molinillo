@@ -39,7 +39,7 @@ module Resolver
 
     # @return [String] a string suitable for debugging
     def inspect
-      "DependencyGraph:#{vertices.values.inspect}"
+      "#{self.class}:#{vertices.values.inspect}"
     end
 
     # @return [Boolean] whether the two dependency graphs are equal, determined
@@ -174,7 +174,7 @@ module Resolver
 
       # @return [String] a string suitable for debugging
       def inspect
-        "DependencyGraph::Vertex:#{name}(#{payload.inspect})"
+        "#{self.class}:#{name}(#{payload.inspect})"
       end
 
       # @return [Boolean] whether the two vertices are equal, determined
