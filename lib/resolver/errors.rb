@@ -14,7 +14,7 @@ module Resolver
     # @param [Array<DependencyGraph::Vertex>] nodes the nodes in the dependency
     #   that caused the error
     def initialize(nodes)
-      super "There is a circular dependency between #{nodes.map(&:name) * ' and '}"
+      super "There is a circular dependency between #{nodes.map(&:name).join(' and ')}"
       @dependencies = nodes.map(&:payload).to_set
     end
   end
