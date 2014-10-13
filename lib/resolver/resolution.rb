@@ -81,7 +81,7 @@ module Resolver
       # Ends the resolution process
       # @return [void]
       def end_resolution
-        debug { "finished resolution (took #{(@ended_at = Time.now) - @started_at} seconds) (#{@ended_at})" }
+        debug { "finished resolution (took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})" }
         debug { 'unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
         debug { 'activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
       end
@@ -95,9 +95,6 @@ module Resolver
 
       # @return [Time] the time at which resolution begain
       attr_accessor :started_at
-
-      # @return [Time] the time at which resolution finished
-      attr_accessor :ended_at
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
