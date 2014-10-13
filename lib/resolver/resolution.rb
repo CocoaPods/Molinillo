@@ -93,7 +93,7 @@ module Resolver
       #   {#resolver_ui}'s {UI#indicate_progress} method
       attr_accessor :iteration_rate
 
-      # @return [Time] the time at which resolution begain
+      # @return [Time] the time at which resolution began
       attr_accessor :started_at
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
