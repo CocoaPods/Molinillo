@@ -29,7 +29,7 @@ module Resolver
             dependency = index.specs[name].find { |s| s.version == version }
             node = if parent
                      graph.add_vertex(name, dependency).tap do |v|
-                       graph.add_edge(parent, v)
+                       graph.add_edge(parent, v, dependency)
                      end
                    else
                      graph.add_root_vertex(name, dependency)

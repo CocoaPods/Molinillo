@@ -16,6 +16,10 @@ module Resolver
       dependency.inspect
     end
 
+    def name_for_explicit_dependency_source
+      'user-specified dependency'
+    end
+
     # Sort dependencies so that the ones that are easiest to resolve are first.
     # Easiest to resolve is (usually) defined by:
     #   1) Is this dependency already activated?

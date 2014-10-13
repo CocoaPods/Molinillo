@@ -3,7 +3,7 @@ module Resolver
     # A specific resolution from a given {Resolver}
     class Resolution
       # A conflict that the resolution process encountered
-      # @attr [Object] requirement the requirement that caused the conflict
+      # @attr [{String,Nil=>[Object]}] requirements the requirements that caused the conflict
       # @attr [Object, nil] existing the existing spec that was in conflict with
       #   the {#possibility}
       # @attr [Object] possibility the spec that was unable to be activated due
@@ -137,7 +137,10 @@ module Resolver
       # {#requested} dependencies
       # @return [DependencyState] the initial state for the resolution
       def initial_state
-        graph = DependencyGraph.new.tap { |dg| original_requested.each { |r| dg.add_root_vertex(name_for(r), nil) } }
+        graph = DependencyGraph.new.tap do |dg|
+          original_requested.each { |r| dg.add_root_vertex(name_for(r), nil).tap { |v| v.explicit_requirements << r } }
+        end
+
         requirements = sort_dependencies(original_requested, graph, {})
         initial_requirement = requirements.shift
         DependencyState.new(
@@ -168,11 +171,13 @@ module Resolver
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
       def create_conflict
-        if vertex = activated.vertex_named(name)
-          existing = vertex.payload
-        end
+        vertex = activated.vertex_named(name)
+        existing = vertex.payload
+        requirements = {}
+        vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
+        requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements
         conflicts[name] = Conflict.new(
-          vertex.incoming_requirements + [requirement],
+          requirements,
           existing,
           possibility
         )
@@ -219,7 +224,6 @@ module Resolver
       def attempt_to_ativate_existing_spec(existing_node)
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
-          existing_node.incoming_requirements << requirement
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements)
         else
@@ -265,7 +269,6 @@ module Resolver
         debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
         vertex = activated.vertex_named(name_for(possibility))
         vertex.payload = possibility
-        vertex.incoming_requirements << requirement
         require_nested_dependencies_for(possibility)
       end
 
@@ -277,7 +280,7 @@ module Resolver
         debug(depth) { 'requiring nested dependencies' }
 
         nested_dependencies = dependencies_for(activated_spec)
-        nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)] }
+        nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)], d }
 
         push_state_for_requirements(requirements + nested_dependencies)
       end
