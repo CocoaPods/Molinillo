@@ -4,7 +4,8 @@ module Resolver
     # A directed edge of a {DependencyGraph}
     # @attr [Vertex] origin The origin of the directed edge
     # @attr [Vertex] destination The destination of the directed edge
-    Edge = Struct.new(:origin, :destination)
+    # @attr [Array] requirements The requirements the directed edge represents
+    Edge = Struct.new(:origin, :destination, :requirements)
 
     # @return [{String => Vertex}] vertices that have no {Vertex#predecessors},
     #   keyed by by {Vertex#name}
@@ -33,7 +34,11 @@ module Resolver
       end
       @root_vertices = Hash[vertices.select { |n, _v| other.root_vertices[n] }]
       @edges = other.edges.map do |edge|
-        Edge.new vertex_named(edge.origin.name), vertex_named(edge.destination.name)
+        Edge.new(
+          vertex_named(edge.origin.name),
+          vertex_named(edge.destination.name),
+          edge.requirements.dup
+        )
       end
     end
 
@@ -52,8 +57,9 @@ module Resolver
     # @param [String] name
     # @param [Object] payload
     # @param [Array<String>] parent_names
+    # @param [Object] requirement the requirement that is requiring the child
     # @return [void]
-    def add_child_vertex(name, payload, parent_names)
+    def add_child_vertex(name, payload, parent_names, requirement)
       is_root = parent_names.include?(nil)
       parent_nodes = parent_names.compact.map { |n| vertex_named(n) }
       vertex = vertex_named(name) || if is_root
@@ -63,7 +69,7 @@ module Resolver
                                      end
       vertex.payload ||= payload
       parent_nodes.each do |parent_node|
-        add_edge(parent_node, vertex)
+        add_edge(parent_node, vertex, requirement)
       end
       vertex
     end
@@ -72,7 +78,8 @@ module Resolver
     # @param [Object] payload
     # @return [Vertex] the vertex that was added to `self`
     def add_vertex(name, payload)
-      Vertex.new(self, name, payload).tap { |v| vertices[name] = v }
+      vertex = vertices[name] ||= Vertex.new(self, name, payload)
+      vertex.tap { |v| v.payload = payload }
     end
 
     # @param [String] name
@@ -109,12 +116,13 @@ module Resolver
     # Adds a new {Edge} to the dependency graph
     # @param [Vertex] origin
     # @param [Vertex] destination
+    # @param [Object] requirement the requirement that this edge represents
     # @return [Edge] the added edge
-    def add_edge(origin, destination)
+    def add_edge(origin, destination, requirement)
       if origin == destination || destination.path_to?(origin)
         raise CircularDependencyError.new([origin, destination])
       end
-      Edge.new(origin, destination).tap { |e| edges << e }
+      Edge.new(origin, destination, [requirement]).tap { |e| edges << e }
     end
 
     # A vertex in a {DependencyGraph} that encapsulates a {#name} and a
@@ -126,11 +134,12 @@ module Resolver
       # @return [String] the name of the vertex
       attr_accessor :name
 
-      # @return [Object] payload the payload the vertex holds
+      # @return [Object] the payload the vertex holds
       attr_accessor :payload
 
-      # @return [Arrary<Object>] the requirements that led this vertex
-      attr_reader :incoming_requirements
+      # @return [Arrary<Object>] the explicit requirements that required
+      #   this vertex
+      attr_reader :explicit_requirements
 
       # @param [DependencyGraph] graph see {#graph}
       # @param [String] name see {#name}
@@ -139,7 +148,7 @@ module Resolver
         @graph = graph
         @name = name
         @payload = payload
-        @incoming_requirements = []
+        @explicit_requirements = []
       end
 
       # @return [Array<Edge>] the edges of {#graph} that have `self` as their

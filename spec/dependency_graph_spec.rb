@@ -8,7 +8,7 @@ module Resolver
         @graph = DependencyGraph.new
         @root  = @graph.add_root_vertex('Root', 'Root')
         @root2 = @graph.add_root_vertex('Root2', 'Root2')
-        @child = @graph.add_child_vertex('Child', 'Child', %w(Root))
+        @child = @graph.add_child_vertex('Child', 'Child', %w(Root), 'Child')
       end
 
       it 'returns root vertices by name' do
@@ -50,7 +50,7 @@ module Resolver
 
       it 'detaches a root vertex with successors' do
         root = @graph.add_root_vertex('root', 'root')
-        child = @graph.add_child_vertex('child', 'child', %w(root))
+        child = @graph.add_child_vertex('child', 'child', %w(root), 'child')
         @graph.detach_vertex_named(root.name)
         @graph.vertex_named(root.name).
           should.equal nil
@@ -63,7 +63,7 @@ module Resolver
       it 'detaches a root vertex with successors with other parents' do
         root = @graph.add_root_vertex('root', 'root')
         root2 = @graph.add_root_vertex('root2', 'root2')
-        child = @graph.add_child_vertex('child', 'child', %w(root root2))
+        child = @graph.add_child_vertex('child', 'child', %w(root root2), 'child')
         @graph.detach_vertex_named(root.name)
         @graph.vertex_named(root.name).
           should.equal nil

@@ -27,8 +27,17 @@ module Resolver
 
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
     def initialize(conflicts)
+      pairs = []
+      conflicts.values.flatten.map(&:requirements).flatten.each do |conflicting|
+        conflicting.each do |source, conflict_requirements|
+          conflict_requirements.each do |c|
+            pairs << [c, source]
+          end
+        end
+      end
+
       super "Unable to satisfy the following requirements:\n\n" \
-        "#{conflicts.values.flatten.map(&:requirements).flatten.map { |r| "- `#{r}`" }.join("\n")}"
+        "#{pairs.map { |r, d| "- `#{r}` required by `#{d}`" }.join("\n")}"
       @conflicts = conflicts
     end
   end
