@@ -112,10 +112,10 @@ module Resolver
         define_method instance_method do |*args, &block|
           begin
             specification_provider.send(instance_method, *args, &block)
-          rescue NoSuchDependencyError => e
-            vertex = activated.vertex_named(name_for e.dependency)
-            e.required_by += vertex.incoming_edges.map { |e| e.origin.name }
-            e.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
+          rescue NoSuchDependencyError => error
+            vertex = activated.vertex_named(name_for error.dependency)
+            error.required_by += vertex.incoming_edges.map { |e| e.origin.name }
+            error.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
             raise
           end
         end
@@ -183,9 +183,8 @@ module Resolver
       def create_conflict
         vertex = activated.vertex_named(name)
         existing = vertex.payload
-        requirements = {}
+        requirements = { name_for_explicit_dependency_source => vertex.explicit_requirements }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
-        requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements
         conflicts[name] = Conflict.new(
           requirements,
           existing,
