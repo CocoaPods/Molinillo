@@ -151,6 +151,12 @@ module Resolver
         @explicit_requirements = []
       end
 
+      # @return [Array<Object>] all of the requirements that required
+      #   this vertex
+      def requirements
+        incoming_edges.flat_map(&:requirements) + explicit_requirements
+      end
+
       # @return [Array<Edge>] the edges of {#graph} that have `self` as their
       #   {Edge#origin}
       def outgoing_edges
