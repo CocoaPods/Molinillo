@@ -1,8 +1,8 @@
 # Molinillo
 
-[![Build Status](https://img.shields.io/travis/CocoaPods/Resolver/master.svg?style=flat)](https://travis-ci.org/CocoaPods/Resolver)
-[![Coverage](https://img.shields.io/codeclimate/coverage/github/CocoaPods/Resolver.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Resolver)
-[![Code Climate](https://img.shields.io/codeclimate/github/CocoaPods/Resolver.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Resolver)
+[![Build Status](https://img.shields.io/travis/CocoaPods/Molinillo/master.svg?style=flat)](https://travis-ci.org/CocoaPods/Molinillo)
+[![Coverage](https://img.shields.io/codeclimate/coverage/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
+[![Code Climate](https://img.shields.io/codeclimate/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
 
 A generic dependency-resolution implementation.
 
@@ -11,7 +11,7 @@ A generic dependency-resolution implementation.
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'molinillo', :git => 'https://github.com/CocoaPods/Resolver'
+gem 'molinillo', :git => 'https://github.com/CocoaPods/Molinillo'
 ```
 
 And then execute:

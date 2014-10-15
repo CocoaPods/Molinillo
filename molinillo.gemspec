@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ['Samuel E. Giddins']
   spec.email         = ['segiddins@segiddins.me']
   spec.summary       = 'Provides support for dependency resolution'
-  spec.homepage      = 'https://github.com/CocoaPods/Resolver'
+  spec.homepage      = 'https://github.com/CocoaPods/Molinillo'
   spec.license       = 'MIT'
 
   spec.files         = Dir['lib/**/*.rb'] + %w(README.md LICENSE)
