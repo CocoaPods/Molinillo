@@ -1,7 +1,7 @@
 require File.expand_path('../spec_helper', __FILE__)
 require 'set'
 
-module Resolver
+module Molinillo
   describe DependencyGraph do
     describe 'in general' do
       before do

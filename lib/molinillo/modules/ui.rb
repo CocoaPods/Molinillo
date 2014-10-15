@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   module UI
     def indicate_progress; end
 

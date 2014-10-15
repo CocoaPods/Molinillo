@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   module SpecificationProvider
     def search_for(dependency)
       []

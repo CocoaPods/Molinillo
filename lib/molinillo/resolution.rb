@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   class Resolver
     # A specific resolution from a given {Resolver}
     class Resolution
@@ -89,8 +89,8 @@ module Resolver
         debug { 'activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
       end
 
-      require 'resolver/state'
-      require 'resolver/modules/specification_provider'
+      require 'molinillo/state'
+      require 'molinillo/modules/specification_provider'
 
       # @return [Integer] the number of resolver iterations in between calls to
       #   {#resolver_ui}'s {UI#indicate_progress} method

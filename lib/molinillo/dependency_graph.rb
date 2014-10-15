@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   # A directed acyclic graph that is tuned to hold named dependencies
   class DependencyGraph
     # A directed edge of a {DependencyGraph}

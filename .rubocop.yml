@@ -21,4 +21,4 @@ RaiseArgs:
 
 Lint/UnusedMethodArgument:
   Exclude:
-    - 'lib/resolver/modules/**/*'
+    - 'lib/molinillo/modules/**/*'

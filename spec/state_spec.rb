@@ -1,6 +1,6 @@
 require File.expand_path('../spec_helper', __FILE__)
 
-module Resolver
+module Molinillo
   describe ResolutionState do
     describe DependencyState do
       before do

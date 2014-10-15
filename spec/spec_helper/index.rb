@@ -1,7 +1,7 @@
-module Resolver
+module Molinillo
   class TestIndex
     attr_accessor :specs
-    include ::Resolver::SpecificationProvider
+    include SpecificationProvider
 
     def initialize(fixture_name)
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|

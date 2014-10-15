@@ -13,7 +13,7 @@ if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0'
   end
   SimpleCov.start do
     add_filter '/vendor/'
-    add_filter '/lib/resolver/modules/'
+    add_filter '/lib/molinillo/modules/'
   end
   CodeClimate::TestReporter.start
 end
@@ -31,4 +31,4 @@ require 'bacon'
 require 'mocha-on-bacon'
 require 'pretty_bacon'
 require 'version_kit'
-require 'resolver'
+require 'molinillo'

@@ -2,7 +2,7 @@ require File.expand_path('../spec_helper', __FILE__)
 require 'json'
 require 'pathname'
 
-module Resolver
+module Molinillo
   FIXTURE_DIR = Pathname.new('spec/resolver_integration_specs')
   FIXTURE_INDEX_DIR = FIXTURE_DIR + 'index'
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'

@@ -7,7 +7,7 @@ GIT
 PATH
   remote: .
   specs:
-    resolver (0.0.1)
+    molinillo (0.0.1)
 
 GEM
   remote: https://rubygems.org/
@@ -75,8 +75,8 @@ DEPENDENCIES
   mime-types (< 2.0)
   mocha (~> 0.11.4)
   mocha-on-bacon
+  molinillo!
   prettybacon
   rake
-  resolver!
   rubocop
   version_kit!

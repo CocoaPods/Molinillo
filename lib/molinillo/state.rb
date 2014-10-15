@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   # A state that a {Resolution} can be in
   # @attr [String] name
   # @attr [Array<Object>] requirements

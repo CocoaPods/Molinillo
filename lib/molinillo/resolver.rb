@@ -1,13 +1,13 @@
-require 'resolver/dependency_graph'
+require 'molinillo/dependency_graph'
 
-module Resolver
+module Molinillo
   # This class encapsulates a dependency resolver.
   # The resolver is responsible for determining which set of dependencies to
   # activate, with feedback from the the {#specification_provider}
   #
   #
   class Resolver
-    require 'resolver/resolution'
+    require 'molinillo/resolution'
 
     # @return [SpecificationProvider] the specification provider used
     #   in the resolution process

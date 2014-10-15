@@ -1,5 +1,0 @@
-require 'resolver/gem_metadata'
-require 'resolver/errors'
-require 'resolver/resolver'
-require 'resolver/modules/ui'
-require 'resolver/modules/specification_provider'

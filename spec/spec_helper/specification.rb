@@ -1,4 +1,4 @@
-module Resolver
+module Molinillo
   class TestSpecification
     attr_accessor :name, :version, :dependencies
     def initialize(hash)
