@@ -81,7 +81,10 @@ module Resolver
       # Ends the resolution process
       # @return [void]
       def end_resolution
-        debug { "finished resolution (took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})" }
+        debug do
+          "finished resolution (#{@iteration_counter} steps) " \
+          "(took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})"
+        end
         debug { 'unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
         debug { 'activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
       end
@@ -277,9 +280,8 @@ module Resolver
       #   activated
       # @return [void]
       def require_nested_dependencies_for(activated_spec)
-        debug(depth) { 'requiring nested dependencies' }
-
         nested_dependencies = dependencies_for(activated_spec)
+        debug(depth) { "requiring nested dependencies (#{nested_dependencies.map(&:to_s).join(', ')})" }
         nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)], d }
 
         push_state_for_requirements(requirements + nested_dependencies)
