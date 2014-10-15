@@ -2,6 +2,31 @@ module Resolver
   # An error that occurred during the resolution process
   class ResolverError < StandardError; end
 
+  # An error caused by searching for a dependency that is completely unknown,
+  # i.e. has no versions available whatsoever.
+  class NoSuchDependencyError < ResolverError
+    # @return [Object] the dependency that could not be found
+    attr_accessor :dependency
+
+    # @return [Array<Object>] the specifications that depended upon {#dependency}
+    attr_accessor :required_by
+
+    # @param [Object] dependency @see {#dependency}
+    # @param [Array<Object>] required_by @see {#required_by}
+    def initialize(dependency, required_by = [])
+      @dependency = dependency
+      @required_by = required_by
+      super()
+    end
+
+    def message
+      sources = required_by.map { |r| "`#{r}`" }.join(' and ')
+      message = "Unable to find a specification for `#{dependency}`"
+      message << " depended upon by #{sources}" unless sources.empty?
+      message
+    end
+  end
+
   # An error caused by attempting to fulfil a dependency that was circular
   #
   # @note This exception will be thrown iff a {Vertex} is added to a

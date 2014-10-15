@@ -110,7 +110,14 @@ module Resolver
 
       SpecificationProvider.instance_methods(false).each do |instance_method|
         define_method instance_method do |*args, &block|
-          specification_provider.send(instance_method, *args, &block)
+          begin
+            specification_provider.send(instance_method, *args, &block)
+          rescue NoSuchDependencyError => e
+            vertex = activated.vertex_named(name_for e.dependency)
+            e.required_by += vertex.incoming_edges.map { |e| e.origin.name }
+            e.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
+            raise
+          end
         end
       end
 
