@@ -154,11 +154,11 @@ module Molinillo
         requirements = sort_dependencies(original_requested, graph, {})
         initial_requirement = requirements.shift
         DependencyState.new(
-          name_for(initial_requirement),
+          initial_requirement && name_for(initial_requirement),
           requirements,
           graph,
           initial_requirement,
-          search_for(initial_requirement),
+          initial_requirement && search_for(initial_requirement),
           0,
           {}
         )

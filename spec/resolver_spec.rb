@@ -92,5 +92,16 @@ module Molinillo
       end
     end
 
+    describe 'in general' do
+      before do
+        @resolver = Resolver.new(TestIndex.new('awesome'), TestUI.new)
+      end
+
+      it 'can resolve a list of 0 requirements' do
+        @resolver.resolve([], DependencyGraph.new).
+          should.equal DependencyGraph.new
+      end
+    end
+
   end
 end
