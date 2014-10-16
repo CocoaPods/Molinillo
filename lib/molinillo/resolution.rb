@@ -127,6 +127,7 @@ module Molinillo
         if possibility
           attempt_to_activate
         else
+          create_conflict if state.is_a? PossibilityState
           unwind_for_conflict until possibility && state.is_a?(DependencyState)
         end
       end
