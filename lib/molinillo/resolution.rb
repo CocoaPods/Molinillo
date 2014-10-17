@@ -248,7 +248,7 @@ module Molinillo
       # @return [void]
       def attempt_to_activate_new_spec
         satisfied = begin
-          locked_spec = explicitly_locked_spec_named(name)
+          locked_spec = locked_spec_named(name)
           requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
           locked_spec_satisfied = !locked_spec || requirement_satisfied_by?(locked_spec, activated, possibility)
           debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
@@ -264,10 +264,10 @@ module Molinillo
       end
 
       # @param [String] spec_name the spec name to search for
-      # @return [Object] the explicitly locked spec named `spec_name`, if one
+      # @return [Object] the locked spec named `spec_name`, if one
       #   is found on {#base}
-      def explicitly_locked_spec_named(spec_name)
-        vertex = base.root_vertex_named(spec_name)
+      def locked_spec_named(spec_name)
+        vertex = base.vertex_named(spec_name)
         vertex.payload if vertex
       end
 
