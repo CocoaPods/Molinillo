@@ -1,6 +1,12 @@
 module Molinillo
   # A directed acyclic graph that is tuned to hold named dependencies
   class DependencyGraph
+    include Enumerable
+
+    def each
+      vertices.values.each { |v| yield v }
+    end
+
     # A directed edge of a {DependencyGraph}
     # @attr [Vertex] origin The origin of the directed edge
     # @attr [Vertex] destination The destination of the directed edge
