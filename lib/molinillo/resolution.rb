@@ -184,7 +184,10 @@ module Molinillo
       def create_conflict
         vertex = activated.vertex_named(name)
         existing = vertex.payload
-        requirements = { name_for_explicit_dependency_source => vertex.explicit_requirements }
+        requirements = {
+          name_for_explicit_dependency_source => vertex.explicit_requirements,
+          name_for_locking_dependency_source => [locked_requirement_named(name)],
+        }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
         conflicts[name] = Conflict.new(
           requirements,
@@ -248,9 +251,10 @@ module Molinillo
       # @return [void]
       def attempt_to_activate_new_spec
         satisfied = begin
-          locked_spec = locked_spec_named(name)
+          locked_requirement = locked_requirement_named(name)
           requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
-          locked_spec_satisfied = !locked_spec || requirement_satisfied_by?(locked_spec, activated, possibility)
+          locked_spec_satisfied = !locked_requirement ||
+            requirement_satisfied_by?(locked_requirement, activated, possibility)
           debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
           debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
           requested_spec_satisfied && locked_spec_satisfied
@@ -263,12 +267,12 @@ module Molinillo
         end
       end
 
-      # @param [String] spec_name the spec name to search for
-      # @return [Object] the locked spec named `spec_name`, if one
+      # @param [String] requirement_name the spec name to search for
+      # @return [Object] the locked spec named `requirement_name`, if one
       #   is found on {#base}
-      def locked_spec_named(spec_name)
-        vertex = base.vertex_named(spec_name)
-        vertex.payload if vertex
+      def locked_requirement_named(requirement_name)
+        vertex = base.vertex_named(requirement_name)
+        vertex && vertex.payload
       end
 
       # Add the current {#possibility} to the dependency graph of the current
@@ -276,8 +280,8 @@ module Molinillo
       # @return [void]
       def activate_spec
         conflicts.delete(name)
-        debug(depth) { 'activated ' + name_for(possibility) + ' at ' + possibility.to_s }
-        vertex = activated.vertex_named(name_for(possibility))
+        debug(depth) { 'activated ' + name + ' at ' + possibility.to_s }
+        vertex = activated.vertex_named(name)
         vertex.payload = possibility
         require_nested_dependencies_for(possibility)
       end

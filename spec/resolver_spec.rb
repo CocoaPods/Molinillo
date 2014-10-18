@@ -104,7 +104,7 @@ module Molinillo
 
       it 'includes the source of a user-specified unsatisfied dependency' do
         should.raise VersionConflict do
-          @resolver.resolve([VersionKit::Dependency.new('missing', '3.0')], [])
+          @resolver.resolve([VersionKit::Dependency.new('missing', '3.0')], DependencyGraph.new)
         end.message.should.match /required by `user-specified dependency`/
       end
     end

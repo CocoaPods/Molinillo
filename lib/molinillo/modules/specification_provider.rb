@@ -59,6 +59,12 @@ module Molinillo
       'user-specified dependency'
     end
 
+    # @return [String] the name of the source of 'locked' dependencies, i.e.
+    #   those passed to {Resolver#resolve} directly as the `base`
+    def name_for_locking_dependency_source
+      'Lockfile'
+    end
+
     # Sort dependencies so that the ones that are easiest to resolve are first.
     # Easiest to resolve is (usually) defined by:
     #   1) Is this dependency already activated?
