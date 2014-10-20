@@ -186,7 +186,7 @@ module Molinillo
         existing = vertex.payload
         requirements = {
           name_for_explicit_dependency_source => vertex.explicit_requirements,
-          name_for_locking_dependency_source => [locked_requirement_named(name)],
+          name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
         conflicts[name] = Conflict.new(
