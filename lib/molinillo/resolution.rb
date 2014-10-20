@@ -61,9 +61,9 @@ module Molinillo
           process_topmost_state
         end
 
-        end_resolution
-
         activated.freeze
+      ensure
+        end_resolution
       end
 
       private
@@ -76,11 +76,13 @@ module Molinillo
         states.push(initial_state)
 
         debug { "starting resolution (#{@started_at})" }
+        resolver_ui.before_resolution
       end
 
       # Ends the resolution process
       # @return [void]
       def end_resolution
+        resolver_ui.after_resolution
         debug do
           "finished resolution (#{@iteration_counter} steps) " \
           "(took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})"
@@ -200,14 +202,15 @@ module Molinillo
       # @return [void]
       def indicate_progress
         @iteration_counter += 1
+        @progress_rate ||= resolver_ui.progress_rate
         if iteration_rate.nil?
-          if Time.now - started_at >= 1.0
-            iteration_rate = @iteration_counter
+          if Time.now - started_at >= @progress_rate
+            self.iteration_rate = @iteration_counter
           end
-        else
-          if ((iteration_counter % iteration_rate) == 0)
-            resolver_ui.indicate_progress
-          end
+        end
+
+        if iteration_rate && (@iteration_counter % iteration_rate) == 0
+          resolver_ui.indicate_progress
         end
       end
 
