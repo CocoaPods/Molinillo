@@ -17,8 +17,9 @@ This stack-based approach is used because backtracking (also known as *unwinding
 1. The client initializes a `Resolver` with a `SpecificationProvider` and `UI`
 2. The client calls `resolve` with an array of user-requested dependencies and an optional 'locking' `DependencyGraph`
 3. The `Resolver` creates a new `Resolution` with those four user-specified parameters and calls `resolve` on it
-4. The `Resolution` creates an `initial_state`, which takes the **FIXME**
+4. The `Resolution` creates an `initial_state`, which takes the user-requested dependencies and puts them into a `DependencyState`
   - In the process of creating the state, the `SpecificationProvider` is asked to sort the dependencies and return all the `possibilities` for the `initial_requirement`
+  - A `DependencyGraph` is created that has all of these requirements point to `root_vertices`
 5. The resolution process now enters its main loop, which continues as long as there is a current `state` to process, and the current state has requirements left to process
 6. `UI#indicate_progress` is called to allow the client to report progress
 7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a single possibility for that dependency
