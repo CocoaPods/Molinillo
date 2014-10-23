@@ -21,7 +21,7 @@ This stack-based approach is used because backtracking (also known as *unwinding
   - In the process of creating the state, the `SpecificationProvider` is asked to sort the dependencies and return all the `possibilities` for the `initial_requirement`
 5. The resolution process now enters its main loop, which continues as long as there is a current `state` to process, and the current state has requirements left to process
 6. `UI#indicate_progress` is called to allow the client to report progress
-7. Unless the current state is a `PossibilityState`, we have the current state pop off a `PossibilityState` that encapsulates a single possibility
+7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a single possibility for that dependency
 8. Process the topmost state on the stack
 9. If there's a possibility for the state, `attempt_to_activate` it (jump to #11)
 10. If there's no possibility, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until theres a `DependencyState` with a `possibility` atop the stack
