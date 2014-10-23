@@ -228,7 +228,7 @@ module Molinillo
         debug(depth) { 'attempting to activate ' + possibility.to_s }
         existing_node = activated.vertex_named(name)
         if existing_node && existing_node.payload
-          attempt_to_ativate_existing_spec(existing_node)
+          attempt_to_activate_existing_spec(existing_node)
         else
           attempt_to_activate_new_spec
         end
@@ -237,7 +237,7 @@ module Molinillo
       # Attempts to activate the current {#possibility} (given that it has
       # already been activated)
       # @return [void]
-      def attempt_to_ativate_existing_spec(existing_node)
+      def attempt_to_activate_existing_spec(existing_node)
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
