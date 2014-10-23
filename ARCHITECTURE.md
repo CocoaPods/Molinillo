@@ -24,7 +24,7 @@ This stack-based approach is used because backtracking (also known as *unwinding
 7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a single possibility for that dependency
 8. Process the topmost state on the stack
 9. If there's a possibility for the state, `attempt_to_activate` it (jump to #11)
-10. If there's no possibility, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until theres a `DependencyState` with a `possibility` atop the stack
+10. If there's no possibility, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until there's a `DependencyState` with a `possibility` atop the stack
 11. Check if there is an existing node in the `activated` dependency graph with the name of the current `requirement`
 12. If so, `attempt_to_activate_existing_spec` (jump to #14). If not, `attempt_to_activate_new_spec`
 13. Check if there is a `locked` dependency with the current dependency's name. If there is, verify that both the locked dependency and the current `requirement` are satisfied with the current `possibility`. If either is not satisfied, `create_conflict` and `unwind_for_conflict`
