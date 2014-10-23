@@ -16,7 +16,7 @@ module Molinillo
       output.print '.' unless debug?
     end
 
-    # How often progress progress should be conveyed to the user via
+    # How often progress should be conveyed to the user via
     # {#indicate_progress}, in seconds. A third of a second, by default.
     #
     # @return [Float]
