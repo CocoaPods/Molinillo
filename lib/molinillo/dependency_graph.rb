@@ -1,3 +1,5 @@
+require 'set'
+
 module Molinillo
   # A directed acyclic graph that is tuned to hold named dependencies
   class DependencyGraph
@@ -23,7 +25,6 @@ module Molinillo
     attr_reader :edges
 
     def initialize
-      require 'set'
       @vertices = {}
       @edges = Set.new
       @root_vertices = {}
