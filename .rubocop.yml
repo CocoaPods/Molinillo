@@ -3,6 +3,22 @@ inherit_from: .rubocop_cocoapods.yml
 Metrics/LineLength:
   Max: 120
 
+Metrics/ClassLength:
+  Max: 225
+
+Metrics/MethodLength:
+  Max: 15
+
 AllCops:
   Exclude:
     - 'vendor/**/*'
+
+Style/TrailingComma:
+  Enabled: false
+
+RaiseArgs:
+  Enabled: false
+
+Lint/UnusedMethodArgument:
+  Exclude:
+    - 'lib/molinillo/modules/**/*'

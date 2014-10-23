@@ -4,8 +4,9 @@ Kicker::Recipes::Ruby.runner_bin = 'bacon --quiet'
 
 process do |files|
   specs = files.take_and_map do |file|
-    if file =~ %r{lib/[^/]*/(.+?)\.rb$}
-      s = Dir.glob("spec/**/#{File.basename(file, '.rb')}_spec.rb")
+    if file =~ %r{(lib|spec)/[^/]*/(.+?).(rb|json)$}
+      s = Dir.glob("spec/**/#{File.basename(file, '.rb')}_spec.rb") <<
+        'spec/resolver_spec.rb'
       s.uniq unless s.empty?
     end
   end
@@ -27,4 +28,3 @@ recipe :ignore
 ignore(/.*\/?tags/)
 ignore(/.*\/?\.git/)
 ignore(/^tmp/)
-
