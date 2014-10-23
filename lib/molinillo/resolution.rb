@@ -54,7 +54,7 @@ module Molinillo
         while state
           break unless state.requirements.any? || state.requirement
           indicate_progress
-          unless state.is_a? PossibilityState
+          if state.respond_to?(:pop_possibility_state) # DependencyState
             debug(depth) { "creating possibility state (#{possibilities.count} remaining)" }
             state.pop_possibility_state.tap { |s| states.push(s) if s }
           end
