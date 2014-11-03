@@ -87,8 +87,8 @@ module Molinillo
           "Finished resolution (#{@iteration_counter} steps) " \
           "(Took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})"
         end
-        debug { 'Unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
-        debug { 'Activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
+        debug { 'Unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') } if state
+        debug { 'Activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') } if state
       end
 
       require 'molinillo/state'
@@ -115,9 +115,11 @@ module Molinillo
           begin
             specification_provider.send(instance_method, *args, &block)
           rescue NoSuchDependencyError => error
-            vertex = activated.vertex_named(name_for error.dependency)
-            error.required_by += vertex.incoming_edges.map { |e| e.origin.name }
-            error.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
+            if state
+              vertex = activated.vertex_named(name_for error.dependency)
+              error.required_by += vertex.incoming_edges.map { |e| e.origin.name }
+              error.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
+            end
             raise
           end
         end
