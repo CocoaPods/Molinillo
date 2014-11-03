@@ -29,6 +29,13 @@ module Molinillo
       # @return [Array] the dependencies that were explicitly required
       attr_reader :original_requested
 
+      # @return [Fixnum] the number of iterations the resolution process has
+      #   currently taken
+      attr_reader :iteration_counter
+
+      # @return [Time] the time at which resolution began
+      attr_reader :started_at
+
       # @param [SpecificationProvider] specification_provider
       #   see {#specification_provider}
       # @param [UI] resolver_ui see {#resolver_ui}
@@ -55,7 +62,7 @@ module Molinillo
           break unless state.requirements.any? || state.requirement
           indicate_progress
           if state.respond_to?(:pop_possibility_state) # DependencyState
-            debug(depth) { "Creating possibility state (#{possibilities.count} remaining)" }
+            @resolver_ui.indicate_progress(self, :create_possibility_state)
             state.pop_possibility_state.tap { |s| states.push(s) if s }
           end
           process_topmost_state
@@ -64,6 +71,18 @@ module Molinillo
         activated.freeze
       ensure
         end_resolution
+      end
+
+      # @return [Object] the current possibility that the resolution is trying
+      #   to activate
+      def possibility
+        possibilities.last
+      end
+
+      # @return [RequirementState] the current state the resolution is
+      #   operating upon
+      def state
+        states.last
       end
 
       private
@@ -75,20 +94,13 @@ module Molinillo
 
         states.push(initial_state)
 
-        debug { "Starting resolution (#{@started_at})" }
-        resolver_ui.before_resolution
+        @resolver_ui.indicate_progress(self, :start_resolution)
       end
 
       # Ends the resolution process
       # @return [void]
       def end_resolution
-        resolver_ui.after_resolution
-        debug do
-          "Finished resolution (#{@iteration_counter} steps) " \
-          "(Took #{(ended_at = Time.now) - @started_at} seconds) (#{ended_at})"
-        end
-        debug { 'Unactivated: ' + Hash[activated.vertices.reject { |_n, v| v.payload }].keys.join(', ') }
-        debug { 'Activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') }
+        @resolver_ui.indicate_progress(self, :finished_resolution)
       end
 
       require 'molinillo/state'
@@ -97,9 +109,6 @@ module Molinillo
       # @return [Integer] the number of resolver iterations in between calls to
       #   {#resolver_ui}'s {UI#indicate_progress} method
       attr_accessor :iteration_rate
-
-      # @return [Time] the time at which resolution began
-      attr_accessor :started_at
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
@@ -134,18 +143,6 @@ module Molinillo
         end
       end
 
-      # @return [Object] the current possibility that the resolution is trying
-      #   to activate
-      def possibility
-        possibilities.last
-      end
-
-      # @return [RequirementState] the current state the resolution is
-      #   operating upon
-      def state
-        states.last
-      end
-
       # Creates the initial state for the resolution, based upon the
       # {#requested} dependencies
       # @return [DependencyState] the initial state for the resolution
@@ -171,7 +168,7 @@ module Molinillo
       # @return [void]
       def unwind_for_conflict
         if depth > 0
-          debug(depth) { 'Unwinding from level ' + state.depth.to_s }
+          @resolver_ui.indicate_progress(self, :unwind_for_conflict)
           conflicts.tap do |c|
             states.pop
             state.conflicts = c
@@ -210,22 +207,14 @@ module Molinillo
         end
 
         if iteration_rate && (@iteration_counter % iteration_rate) == 0
-          resolver_ui.indicate_progress
+          resolver_ui.indicate_progress(self, :iteration)
         end
-      end
-
-      # Calls the {#resolver_ui}'s {UI#debug} method
-      # @param [Integer] depth the depth of the {#states} stack
-      # @param [Proc] block a block that yields a {#to_s}
-      # @return [void]
-      def debug(depth = 0, &block)
-        resolver_ui.debug(depth, &block)
       end
 
       # Attempts to activate the current {#possibility}
       # @return [void]
       def attempt_to_activate
-        debug(depth) { 'Attempting to activate ' + possibility.to_s }
+        @resolver_ui.indicate_progress(self, :attempt_to_activate)
         existing_node = activated.vertex_named(name)
         if existing_node && existing_node.payload
           attempt_to_activate_existing_spec(existing_node)
@@ -244,7 +233,7 @@ module Molinillo
           push_state_for_requirements(new_requirements)
         else
           create_conflict
-          debug(depth) { 'Unsatisfied by existing spec' }
+          @resolver_ui.indicate_progress(self, :unsatisfied_by_existing_spec)
           unwind_for_conflict
         end
       end
@@ -258,8 +247,8 @@ module Molinillo
           requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
           locked_spec_satisfied = !locked_requirement ||
             requirement_satisfied_by?(locked_requirement, activated, possibility)
-          debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
-          debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
+          @resolver_ui.indicate_progress(self, :unsatisfied_by_requested_spec) unless requested_spec_satisfied
+          @resolver_ui.indicate_progress(self, :unsatisfied_by_locked_spec) unless locked_spec_satisfied
           requested_spec_satisfied && locked_spec_satisfied
         end
         if satisfied
@@ -283,7 +272,7 @@ module Molinillo
       # @return [void]
       def activate_spec
         conflicts.delete(name)
-        debug(depth) { 'Activated ' + name + ' at ' + possibility.to_s }
+        @resolver_ui.indicate_progress(self, :activate_spec)
         vertex = activated.vertex_named(name)
         vertex.payload = possibility
         require_nested_dependencies_for(possibility)
@@ -294,8 +283,9 @@ module Molinillo
       #   activated
       # @return [void]
       def require_nested_dependencies_for(activated_spec)
+        @resolver_ui.indicate_progress(self, :require_nested_dependencies)
+
         nested_dependencies = dependencies_for(activated_spec)
-        debug(depth) { "Requiring nested dependencies (#{nested_dependencies.map(&:to_s).join(', ')})" }
         nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)], d }
 
         push_state_for_requirements(requirements + nested_dependencies)
