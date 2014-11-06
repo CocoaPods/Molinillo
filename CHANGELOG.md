@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.1.1
 
 * Ensure that an unwanted exception is not raised when an error occurs before
   the initial state has been pushed upon the stack.  
