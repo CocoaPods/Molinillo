@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/CocoaPods/VersionKit.git
-  revision: 1493c90433850e3824b0d97b4984e97e2c6cff8a
+  revision: e8015ffb2ed8dd7e77452fccb3915989d4ba57e8
   branch: master
   specs:
     version_kit (0.0.1)
