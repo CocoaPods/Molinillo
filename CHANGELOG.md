@@ -2,9 +2,15 @@
 
 ## Master
 
-###### Bug Fixes
+##### Enhancements
 
-* Ensure that recurse invocations of `detach_vertex_named` don't lead to
+* Improve performance in highly conflicting situations by backtracking more than
+  one state at a time.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+##### Bug Fixes
+
+* Ensure that recursive invocations of `detach_vertex_named` don't lead to
   messaging `nil`.  
   [Samuel Giddins](https://github.com/segiddins)
   [CocoaPods#2805](https://github.com/CocoaPods/CocoaPods/issues/2805)
