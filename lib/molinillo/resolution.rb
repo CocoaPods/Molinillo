@@ -43,6 +43,7 @@ module Molinillo
         @base = base
         @states = []
         @iteration_counter = 0
+        @all_conflicts = []
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -62,6 +63,8 @@ module Molinillo
           end
           process_topmost_state
         end
+
+        double_check_conflict_existing_specs
 
         activated.freeze
       ensure
@@ -105,6 +108,8 @@ module Molinillo
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
+
+      attr_accessor :all_conflicts
 
       ResolutionState.new.members.each do |member|
         define_method member do |*args, &block|
@@ -202,7 +207,7 @@ module Molinillo
         return nil unless requirement
         seen = false
         state = states.reverse_each.find do |s|
-          seen ||= true if s.requirement == requirement
+          seen ||= s.requirement == requirement
           seen && s.requirement != requirement && !s.requirements.include?(requirement)
         end
         state && state.requirement
@@ -222,6 +227,41 @@ module Molinillo
         state && state.possibilities.any?
       end
 
+      def double_check_conflict_existing_specs
+        debug { "Double checking conflicts' existing specs" }
+        all_conflicts.each do |name, conflict_possibility|
+          next unless conflict_possibility
+          vertex = activated.vertex_named(name)
+          possibilities = search_for(vertex.requirements.first)
+          conflict_index = possibilities.index(conflict_possibility)
+          payload_index = possibilities.index(vertex.payload)
+          if conflict_index && payload_index && conflict_index > payload_index
+
+            if safe_to_swap?(name, conflict_possibility)
+              debug { "Swapping #{conflict_possibility} in for #{activated.vertex_named(name).payload}" }
+              vertex.payload = conflict_possibility
+            end
+          end
+        end
+      end
+
+      def safe_to_swap?(name, conflict_possibility)
+        duplicate_activated = activated.dup
+        duplicate_activated.vertex_named(name).payload = conflict_possibility
+        locked_requirement = locked_requirement_named(name)
+        (!locked_requirement || requirement_satisfied_by?(locked_requirement, a, conflict_possibility)) &&
+          activated.vertex_named(name).requirements.all? do |r|
+            requirement_satisfied_by?(r, duplicate_activated, conflict_possibility)
+          end &&
+          dependencies_for(conflict_possibility).all? { |r| existing_spec_satisfied_by?(r, duplicate_activated) }
+      end
+
+      def existing_spec_satisfied_by?(requirement, duplicate_activated)
+        name = name_for(requirement)
+        activated.vertex_named(name) && payload = activated.vertex_named(name).payload
+        payload && requirement_satisfied_by(requirement, duplicate_activated, payload)
+      end
+
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
       def create_conflict
@@ -232,6 +272,7 @@ module Molinillo
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
+        all_conflicts << [name, existing]
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
