@@ -176,8 +176,7 @@ module Molinillo
       def unwind_for_conflict
         debug(depth) { "Unwinding for conflict: #{requirement}" }
         conflicts.tap do |c|
-          states.slice!(state_index_for_unwind..-1)
-          states.pop if state
+          states.slice!((state_index_for_unwind + 1)..-1)
           raise VersionConflict.new(c) unless state
           state.conflicts = c
         end
@@ -186,15 +185,41 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        index = states.rindex do |state|
-          return nil unless vertex = state.activated.vertex_named(name)
-          state.is_a?(DependencyState) &&
-            (
-              !vertex.payload ||
-              (!state.requirements.include?(requirement) && state.requirement != requirement)
-            )
+        current_requirement = requirement
+        existing_requirement = requirement_for_existing_name(name)
+        until current_requirement.nil? && existing_requirement.nil?
+          current_state = find_state(current_requirement)
+          existing_state = find_state(existing_requirement)
+          return states.index(current_state) if state_any?(current_state)
+          return states.index(existing_state) if state_any?(existing_state)
+          existing_requirement = parent_of(existing_requirement)
+          current_requirement = parent_of(current_requirement)
         end
-        index + 2
+        -1
+      end
+
+      def parent_of(requirement)
+        return nil unless requirement
+        seen = false
+        state = states.reverse_each.find do |s|
+          seen ||= true if s.requirement == requirement
+          seen && s.requirement != requirement && !s.requirements.include?(requirement)
+        end
+        state && state.requirement
+      end
+
+      def requirement_for_existing_name(name)
+        return nil unless activated.vertex_named(name).payload
+        states.reverse_each.find { |s| !s.activated.vertex_named(name).payload }.requirement
+      end
+
+      def find_state(requirement)
+        return nil unless requirement
+        states.find { |i| requirement == i.requirement }
+      end
+
+      def state_any?(state)
+        state && state.possibilities.any?
       end
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
