@@ -57,7 +57,7 @@ module Molinillo
           break unless state.requirements.any? || state.requirement
           indicate_progress
           if state.respond_to?(:pop_possibility_state) # DependencyState
-            debug(depth) { "Creating possibility state (#{possibilities.count} remaining)" }
+            debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
             state.pop_possibility_state.tap { |s| states.push(s) if s }
           end
           process_topmost_state
@@ -174,6 +174,7 @@ module Molinillo
       # Unwinds the states stack because a conflict has been encountered
       # @return [void]
       def unwind_for_conflict
+        debug(depth) { "Unwinding for conflict: #{requirement}" }
         conflicts.tap do |c|
           states.slice!(state_index_for_unwind..-1)
           states.pop if state
@@ -243,7 +244,8 @@ module Molinillo
       def attempt_to_activate
         debug(depth) { 'Attempting to activate ' + possibility.to_s }
         existing_node = activated.vertex_named(name)
-        if existing_node && existing_node.payload
+        if existing_node.payload
+          debug(depth) { "Found existing spec (#{existing_node.payload})" }
           attempt_to_activate_existing_spec(existing_node)
         else
           attempt_to_activate_new_spec
@@ -260,7 +262,7 @@ module Molinillo
           push_state_for_requirements(new_requirements)
         else
           create_conflict
-          debug(depth) { 'Unsatisfied by existing spec' }
+          debug(depth) { "Unsatisfied by existing spec (#{existing_node.payload})" }
           unwind_for_conflict
         end
       end
