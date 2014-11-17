@@ -109,6 +109,8 @@ module Molinillo
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
 
+      # @return [Array<Array(String,Object)>] an array of duples of name and
+      #   existing spec for all conflicts.
       attr_accessor :all_conflicts
 
       ResolutionState.new.members.each do |member|
@@ -193,8 +195,8 @@ module Molinillo
         current_requirement = requirement
         existing_requirement = requirement_for_existing_name(name)
         until current_requirement.nil? && existing_requirement.nil?
-          current_state = find_state(current_requirement)
-          existing_state = find_state(existing_requirement)
+          current_state = find_state_for(current_requirement)
+          existing_state = find_state_for(existing_requirement)
           return states.index(current_state) if state_any?(current_state)
           return states.index(existing_state) if state_any?(existing_state)
           existing_requirement = parent_of(existing_requirement)
@@ -203,6 +205,8 @@ module Molinillo
         -1
       end
 
+      # @return [Object] the requirement that led to `requirement` being added
+      #   to the list of requirements.
       def parent_of(requirement)
         return nil unless requirement
         seen = false
@@ -213,20 +217,31 @@ module Molinillo
         state && state.requirement
       end
 
+      # @return [Object] the requirement that led to a version of a possibility
+      #   with the given name being activated.
       def requirement_for_existing_name(name)
         return nil unless activated.vertex_named(name).payload
         states.reverse_each.find { |s| !s.activated.vertex_named(name).payload }.requirement
       end
 
-      def find_state(requirement)
+      # @return [ResolutionState] the state whose `requirement` is the given
+      #   `requirement`.
+      def find_state_for(requirement)
         return nil unless requirement
         states.find { |i| requirement == i.requirement }
       end
 
+      # @return [Boolean] whether or not the given state has any possibilities
+      #   left.
       def state_any?(state)
         state && state.possibilities.any?
       end
 
+      # Enumerate over {#all_conflicts} and ensure that already activated specs
+      # that were backtracked from were not that optimal possibilities that
+      # should have been activated instead, and swaps them in if such a simple
+      # switch is possible.
+      # @return [void]
       def double_check_conflict_existing_specs
         debug { "Double checking conflicts' existing specs" }
         all_conflicts.each do |name, conflict_possibility|
@@ -236,7 +251,6 @@ module Molinillo
           conflict_index = possibilities.index(conflict_possibility)
           payload_index = possibilities.index(vertex.payload)
           if conflict_index && payload_index && conflict_index > payload_index
-
             if safe_to_swap?(name, conflict_possibility)
               debug { "Swapping #{conflict_possibility} in for #{activated.vertex_named(name).payload}" }
               vertex.payload = conflict_possibility
@@ -245,6 +259,11 @@ module Molinillo
         end
       end
 
+      # @param  [String] name
+      # @param  [Object] conflcit_possibility the existing possibility from a
+      #   conflict that is being attempted to be swapped for the current
+      #   activated spec of the given name.
+      # @return [Boolen] whether it is safe to swap in `conflict possibility`.
       def safe_to_swap?(name, conflict_possibility)
         duplicate_activated = activated.dup
         duplicate_activated.vertex_named(name).payload = conflict_possibility
@@ -256,6 +275,11 @@ module Molinillo
           dependencies_for(conflict_possibility).all? { |r| existing_spec_satisfied_by?(r, duplicate_activated) }
       end
 
+      # @param  [Object] requirement the requirement.
+      # @param  [DependencyGraph] duplicate_activated the dependency graph that
+      #   should be used when checking for satisfaction.
+      # @return [Boolean] whether the existing spec satisfies the given
+      #   requirement.
       def existing_spec_satisfied_by?(requirement, duplicate_activated)
         name = name_for(requirement)
         activated.vertex_named(name) && payload = activated.vertex_named(name).payload
