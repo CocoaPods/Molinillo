@@ -18,7 +18,7 @@ module Molinillo
         :existing,
         :possibility,
         :locked_requirement,
-        :requirement_trees,
+        :requirement_trees
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -308,7 +308,7 @@ module Molinillo
           existing,
           possibility,
           locked_requirement_named(name),
-          requirement_trees,
+          requirement_trees
         )
       end
 
