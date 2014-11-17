@@ -265,7 +265,7 @@ module Molinillo
       end
 
       # @param  [String] name
-      # @param  [Object] conflcit_possibility the existing possibility from a
+      # @param  [Object] conflict_possibility the existing possibility from a
       #   conflict that is being attempted to be swapped for the current
       #   activated spec of the given name.
       # @return [Boolen] whether it is safe to swap in `conflict possibility`.
