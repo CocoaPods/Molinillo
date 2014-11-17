@@ -9,11 +9,16 @@ module Molinillo
       #   the {#possibility}
       # @attr [Object] possibility the spec that was unable to be activated due
       #   to a conflict
+      # @attr [Object] locked_requirement the relevant locking requirement.
+      # @attr [Array<Array<Object>>] requirement_trees the different requirement
+      #   trees that led to every requirement for the conflicting name.
       Conflict = Struct.new(
         :requirement,
         :requirements,
         :existing,
-        :possibility
+        :possibility,
+        :locked_requirement,
+        :requirement_trees,
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -301,8 +306,27 @@ module Molinillo
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
           existing,
-          possibility
+          possibility,
+          locked_requirement_named(name),
+          requirement_trees,
         )
+      end
+
+      # @return [Array<Array<Object>>] rhe different requirement
+      #   trees that led to every requirement for the current spec.
+      def requirement_trees
+        activated.vertex_named(name).requirements.map { |r| requirement_tree_for(r) }
+      end
+
+      # @return [Array<Object>] the list of requirements that led to
+      #   `requirement` being required.
+      def requirement_tree_for(requirement)
+        tree = []
+        while requirement
+          tree.unshift(requirement)
+          requirement = parent_of(requirement)
+        end
+        tree
       end
 
       # Indicates progress roughly once every second
