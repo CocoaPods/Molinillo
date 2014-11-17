@@ -295,17 +295,16 @@ module Molinillo
       #   the {#possibility} in conjunction with the current {#state}
       def create_conflict
         vertex = activated.vertex_named(name)
-        existing = vertex.payload
         requirements = {
           name_for_explicit_dependency_source => vertex.explicit_requirements,
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
-        all_conflicts << [name, existing]
+        all_conflicts << [name, vertex.payload]
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
-          existing,
+          vertex.payload,
           possibility,
           locked_requirement_named(name),
           requirement_trees
