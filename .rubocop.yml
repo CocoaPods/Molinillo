@@ -3,9 +3,6 @@ inherit_from: .rubocop_cocoapods.yml
 Metrics/LineLength:
   Max: 120
 
-Metrics/ClassLength:
-  Max: 225
-
 Metrics/MethodLength:
   Max: 15
 
@@ -22,3 +19,8 @@ RaiseArgs:
 Lint/UnusedMethodArgument:
   Exclude:
     - 'lib/molinillo/modules/**/*'
+
+# CocoaPods default overrides
+
+Metrics/CyclomaticComplexity:
+  Enabled: true
