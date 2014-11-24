@@ -7,7 +7,7 @@ module Molinillo
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
         self.specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
           specs_by_name.tap do |specs|
-            specs[name] = versions.map { |s| TestSpecification.new s }.sort { |x, y| x.version <=> y.version }
+            specs[name] = versions.map { |s| TestSpecification.new s }.sort_by(&:version)
           end
         end
       end
@@ -24,8 +24,9 @@ module Molinillo
 
     def search_for(dependency)
       pre_release = dependency_pre_release?(dependency)
-      specs[dependency.name].reject do |spec|
-        pre_release ? false : spec.version.pre_release?
+      specs[dependency.name].select do |spec|
+        (pre_release ? true : !spec.version.pre_release?) &&
+          dependency.satisfied_by?(spec.version)
       end
     end
 
@@ -43,7 +44,7 @@ module Molinillo
           activated.vertex_named(d.name).payload ? 0 : 1,
           dependency_pre_release?(d) ? 0 : 1,
           conflicts[d.name] ? 0 : 1,
-          specs[d.name].count,
+          activated.vertex_named(d.name).payload ? 0 : search_for(d).count,
         ]
       end
     end
