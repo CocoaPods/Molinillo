@@ -263,7 +263,7 @@ module Molinillo
         )
       end
 
-      # @return [Array<Array<Object>>] rhe different requirement
+      # @return [Array<Array<Object>>] The different requirement
       #   trees that led to every requirement for the current spec.
       def requirement_trees
         activated.vertex_named(name).requirements.map { |r| requirement_tree_for(r) }
