@@ -48,7 +48,6 @@ module Molinillo
         @base = base
         @states = []
         @iteration_counter = 0
-        @all_conflicts = []
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -111,10 +110,6 @@ module Molinillo
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
-
-      # @return [Array<Array(String,Object)>] an array of duples of name and
-      #   existing spec for all conflicts.
-      attr_accessor :all_conflicts
 
       ResolutionState.new.members.each do |member|
         define_method member do |*args, &block|
@@ -252,7 +247,6 @@ module Molinillo
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
-        all_conflicts << [name, vertex.payload]
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
