@@ -9,11 +9,16 @@ module Molinillo
       #   the {#possibility}
       # @attr [Object] possibility the spec that was unable to be activated due
       #   to a conflict
+      # @attr [Object] locked_requirement the relevant locking requirement.
+      # @attr [Array<Array<Object>>] requirement_trees the different requirement
+      #   trees that led to every requirement for the conflicting name.
       Conflict = Struct.new(
         :requirement,
         :requirements,
         :existing,
-        :possibility
+        :possibility,
+        :locked_requirement,
+        :requirement_trees
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -176,8 +181,7 @@ module Molinillo
       def unwind_for_conflict
         debug(depth) { "Unwinding for conflict: #{requirement}" }
         conflicts.tap do |c|
-          states.slice!(state_index_for_unwind..-1)
-          states.pop if state
+          states.slice!((state_index_for_unwind + 1)..-1)
           raise VersionConflict.new(c) unless state
           state.conflicts = c
         end
@@ -186,22 +190,58 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        index = states.rindex do |state|
-          return nil unless vertex = state.activated.vertex_named(name)
-          state.is_a?(DependencyState) &&
-            (
-              !vertex.payload ||
-              (!state.requirements.include?(requirement) && state.requirement != requirement)
-            )
+        current_requirement = requirement
+        existing_requirement = requirement_for_existing_name(name)
+        until current_requirement.nil?
+          current_state = find_state_for(current_requirement)
+          return states.index(current_state) if state_any?(current_state)
+          current_requirement = parent_of(current_requirement)
         end
-        index + 2
+
+        until existing_requirement.nil?
+          existing_state = find_state_for(existing_requirement)
+          return states.index(existing_state) if state_any?(existing_state)
+          existing_requirement = parent_of(existing_requirement)
+        end
+        -1
+      end
+
+      # @return [Object] the requirement that led to `requirement` being added
+      #   to the list of requirements.
+      def parent_of(requirement)
+        return nil unless requirement
+        seen = false
+        state = states.reverse_each.find do |s|
+          seen ||= s.requirement == requirement
+          seen && s.requirement != requirement && !s.requirements.include?(requirement)
+        end
+        state && state.requirement
+      end
+
+      # @return [Object] the requirement that led to a version of a possibility
+      #   with the given name being activated.
+      def requirement_for_existing_name(name)
+        return nil unless activated.vertex_named(name).payload
+        states.reverse_each.find { |s| !s.activated.vertex_named(name).payload }.requirement
+      end
+
+      # @return [ResolutionState] the state whose `requirement` is the given
+      #   `requirement`.
+      def find_state_for(requirement)
+        return nil unless requirement
+        states.find { |i| requirement == i.requirement }
+      end
+
+      # @return [Boolean] whether or not the given state has any possibilities
+      #   left.
+      def state_any?(state)
+        state && state.possibilities.any?
       end
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
       def create_conflict
         vertex = activated.vertex_named(name)
-        existing = vertex.payload
         requirements = {
           name_for_explicit_dependency_source => vertex.explicit_requirements,
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
@@ -210,9 +250,28 @@ module Molinillo
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
-          existing,
-          possibility
+          vertex.payload,
+          possibility,
+          locked_requirement_named(name),
+          requirement_trees
         )
+      end
+
+      # @return [Array<Array<Object>>] The different requirement
+      #   trees that led to every requirement for the current spec.
+      def requirement_trees
+        activated.vertex_named(name).requirements.map { |r| requirement_tree_for(r) }
+      end
+
+      # @return [Array<Object>] the list of requirements that led to
+      #   `requirement` being required.
+      def requirement_tree_for(requirement)
+        tree = []
+        while requirement
+          tree.unshift(requirement)
+          requirement = parent_of(requirement)
+        end
+        tree
       end
 
       # Indicates progress roughly once every second
