@@ -9,6 +9,9 @@
   [Samuel Giddins](https://github.com/segiddins)
   [Smit Shah](https://github.com/Who828)
 
+* Add support for topologically sorting a dependency graph's vertices.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.1.2
 
