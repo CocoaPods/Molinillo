@@ -1,5 +1,15 @@
 # Molinillo Changelog
 
+## Master
+
+* Institute stricter forward checking by backjumping to the source of a
+  conflict, even if that source comes from the existing spec. This further
+  improves performance in highly conflicting situations when sorting heuristics
+  prove misleading.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [Smit Shah](https://github.com/Who828)
+
+
 ## 0.1.2
 
 ##### Enhancements
