@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.2.0
 
 * Institute stricter forward checking by backjumping to the source of a
   conflict, even if that source comes from the existing spec. This further
