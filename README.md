@@ -28,7 +28,7 @@ $ gem install molinillo
 
 ## Usage
 
-Look at the test suite for example usage. Better documentation and examples are
+See the [ARCHITECTURE](ARCHITECTURE.md) file for an overview and look at the test suite for example usage. Better documentation and examples are
 forthcoming.
 
 ## Contributing
