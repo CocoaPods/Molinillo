@@ -16,17 +16,16 @@ module Molinillo
     def requirement_satisfied_by?(requirement, _activated, spec)
       case requirement
       when TestSpecification
-        VersionKit::Dependency.new(requirement.name, requirement.version).satisfied_by?(spec.version)
-      when VersionKit::Dependency
-        requirement.satisfied_by?(spec.version)
+        Gem::Dependency.new(requirement.name, requirement.version).matches_spec?(spec)
+      when Gem::Dependency
+        requirement.matches_spec?(spec)
       end
     end
 
     def search_for(dependency)
-      pre_release = dependency_pre_release?(dependency)
       specs[dependency.name].select do |spec|
-        (pre_release ? true : !spec.version.pre_release?) &&
-          dependency.satisfied_by?(spec.version)
+        (dependency.prerelease? ? true : !spec.version.prerelease?) &&
+          dependency.matches_spec?(spec)
       end
     end
 
@@ -42,18 +41,10 @@ module Molinillo
       dependencies.sort_by do |d|
         [
           activated.vertex_named(d.name).payload ? 0 : 1,
-          dependency_pre_release?(d) ? 0 : 1,
+          d.prerelease? ? 0 : 1,
           conflicts[d.name] ? 0 : 1,
           activated.vertex_named(d.name).payload ? 0 : search_for(d).count,
         ]
-      end
-    end
-
-    private
-
-    def dependency_pre_release?(dependency)
-      dependency.requirement_list.requirements.any? do |r|
-        VersionKit::Version.new(r.reference_version).pre_release?
       end
     end
   end
