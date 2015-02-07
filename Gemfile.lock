@@ -1,3 +1,10 @@
+GIT
+  remote: https://github.com/CocoaPods/VersionKit.git
+  revision: e8015ffb2ed8dd7e77452fccb3915989d4ba57e8
+  branch: master
+  specs:
+    version_kit (0.0.1)
+
 PATH
   remote: .
   specs:
@@ -73,3 +80,4 @@ DEPENDENCIES
   prettybacon
   rake
   rubocop
+  version_kit!
