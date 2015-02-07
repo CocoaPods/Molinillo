@@ -9,6 +9,7 @@ Metrics/MethodLength:
 AllCops:
   Exclude:
     - 'vendor/**/*'
+    - 'spec/resolver_integration_specs/**/*'
 
 Style/TrailingComma:
   Enabled: false
