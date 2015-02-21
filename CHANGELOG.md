@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.2.1
 
 * Allow resolving some pathological cases where the backjumping algorithm would
   skip over a valid possibility.  
