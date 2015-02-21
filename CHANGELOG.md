@@ -1,5 +1,12 @@
 # Molinillo Changelog
 
+## Master
+
+* Allow resolving some pathological cases where the backjumping algorithm would
+  skip over a valid possibility.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+
 ## 0.2.0
 
 * Institute stricter forward checking by backjumping to the source of a
