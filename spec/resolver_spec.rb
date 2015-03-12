@@ -58,7 +58,6 @@ module Molinillo
   end
 
   describe Resolver do
-
     describe 'dependency resolution' do
       Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map do |fixture|
         test_case = TestCase.new(fixture)
@@ -108,6 +107,5 @@ module Molinillo
         end.message.should.match /required by `user-specified dependency`/
       end
     end
-
   end
 end
