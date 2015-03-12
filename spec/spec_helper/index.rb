@@ -23,10 +23,13 @@ module Molinillo
     end
 
     def search_for(dependency)
-      pre_release = dependency_pre_release?(dependency)
-      specs[dependency.name].select do |spec|
-        (pre_release ? true : !spec.version.pre_release?) &&
-          dependency.satisfied_by?(spec.version)
+      @search_for ||= {}
+      @search_for[dependency] ||= begin
+        pre_release = dependency_pre_release?(dependency)
+        specs[dependency.name].select do |spec|
+          (pre_release ? true : !spec.version.pre_release?) &&
+            dependency.satisfied_by?(spec.version)
+        end
       end
     end
 
