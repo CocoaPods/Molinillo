@@ -93,7 +93,7 @@ module Molinillo
       def start_resolution
         @started_at = Time.now
 
-        states.push(initial_state)
+        handle_missing_or_push_dependency_state(initial_state)
 
         debug { "Starting resolution (#{@started_at})" }
         resolver_ui.before_resolution
@@ -397,18 +397,24 @@ module Molinillo
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements)
-        new_requirements = sort_dependencies(new_requirements.uniq, activated, conflicts)
+      def push_state_for_requirements(new_requirements, new_activated = activated.dup)
+        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts)
         new_requirement = new_requirements.shift
-        states.push DependencyState.new(
-          new_requirement ? name_for(new_requirement) : '',
-          new_requirements,
-          activated.dup,
-          new_requirement,
-          new_requirement ? search_for(new_requirement) : [],
-          depth,
-          conflicts.dup
+        new_name = new_requirement ? name_for(new_requirement) : ''
+        possibilities = new_requirement ? search_for(new_requirement) : []
+        handle_missing_or_push_dependency_state DependencyState.new(
+          new_name, new_requirements, new_activated,
+          new_requirement, possibilities, depth, conflicts.dup
         )
+      end
+
+      def handle_missing_or_push_dependency_state(state)
+        if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
+          state.activated.detach_vertex_named(state.name)
+          push_state_for_requirements(state.requirements, state.activated)
+        else
+          states.push state
+        end
       end
     end
   end

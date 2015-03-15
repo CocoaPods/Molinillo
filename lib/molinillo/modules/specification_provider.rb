@@ -86,5 +86,9 @@ module Molinillo
         ]
       end
     end
+
+    def allow_missing?(dependency)
+      false
+    end
   end
 end
