@@ -408,6 +408,14 @@ module Molinillo
         )
       end
 
+      # Pushes a new {DependencyState}.
+      # If the {#specification_provider} says to
+      # {SpecificationProvider#allow_missing?} that particular requirement, and
+      # there are no possibilities for that requirement, then `state` is not
+      # pushed, and the node in {#activated} is removed, and we continue
+      # resolving the remaining requirements.
+      # @param [DependencyState] state
+      # @return [void]
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
           state.activated.detach_vertex_named(state.name)

@@ -87,6 +87,11 @@ module Molinillo
       end
     end
 
+    # Returns whether this dependency, which has no possible matching
+    # specifications, can safely be ignored.
+    #
+    # @param [Object] dependency
+    # @return [Boolean] whether this dependency can safely be skipped.
     def allow_missing?(dependency)
       false
     end
