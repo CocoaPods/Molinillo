@@ -1,5 +1,14 @@
 # Molinillo Changelog
 
+## 0.2.2
+
+##### Bug Fixes
+
+* Use an ivar in `DependencyGraph#initialize_copy` to silence an MRI warning.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [Bundler#3516](https://github.com/bundler/bundler/issues/3516)
+
+
 ## 0.2.1
 
 * Allow resolving some pathological cases where the backjumping algorithm would
