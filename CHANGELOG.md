@@ -1,5 +1,15 @@
 # Molinillo Changelog
 
+## Master
+
+##### Bug Fixes
+
+* Silence a silly MRI warning about declaring private attributes.  
+  [Piotr Szotkowski](https://github.com/chastell)
+  [Bundler#3516](https://github.com/bundler/bundler/issues/3516)
+  [Bundler#3525](https://github.com/bundler/bundler/issues/3525)
+
+
 ## 0.2.2
 
 ##### Bug Fixes
