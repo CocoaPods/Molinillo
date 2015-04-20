@@ -13,7 +13,7 @@ task :bootstrap do
   else
     $stderr.puts "\033[0;31m" \
       "[!] Please install the bundler gem manually:\n" \
-      '    $ [sudo] gem install bundler'
+      '    $ [sudo] gem install bundler' \
       "\e[0m"
     exit 1
   end
