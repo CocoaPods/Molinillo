@@ -79,3 +79,6 @@ DEPENDENCIES
   rake
   rubocop
   version_kit!
+
+BUNDLED WITH
+   1.10.5
