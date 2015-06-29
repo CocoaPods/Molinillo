@@ -1,5 +1,13 @@
 # Molinillo Changelog
 
+## Master
+
+##### Enhancements
+
+* Add the ability to optionally skip dependencies that have no possibilities.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+
 ## 0.2.3
 
 ##### Bug Fixes
