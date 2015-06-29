@@ -116,7 +116,8 @@ module Molinillo
 
       ResolutionState.new.members.each do |member|
         define_method member do |*args, &block|
-          state.send(member, *args, &block)
+          current_state = state || ResolutionState.empty
+          current_state.send(member, *args, &block)
         end
       end
 
