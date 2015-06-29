@@ -106,6 +106,24 @@ module Molinillo
           @resolver.resolve([VersionKit::Dependency.new('missing', '3.0')], DependencyGraph.new)
         end.message.should.match /required by `user-specified dependency`/
       end
+
+      it 'can handle when allow_missing? returns true for the only requirement' do
+        dep = VersionKit::Dependency.new('missing', '3.0')
+        @resolver.specification_provider.stubs(:allow_missing?).with(dep).returns(true)
+        @resolver.resolve([dep], DependencyGraph.new).to_a.should == []
+      end
+
+      it 'can handle when allow_missing? returns true for a nested requirement' do
+        index = TestIndex.new('awesome')
+        dep = VersionKit::Dependency.new('actionpack', '1.2.3')
+        @resolver.specification_provider.stubs(:allow_missing?).
+          with { |d| d.name == 'activesupport' }.returns(true)
+        @resolver.specification_provider.stubs(:search_for).
+          with { |d| d.name == 'activesupport' }.returns([])
+        @resolver.specification_provider.stubs(:search_for).
+          with { |d| d.name == 'actionpack' }.returns(index.search_for(dep))
+        @resolver.resolve([dep], DependencyGraph.new).map(&:payload).map(&:to_s).should == ['actionpack (1.2.3)']
+      end
     end
   end
 end
