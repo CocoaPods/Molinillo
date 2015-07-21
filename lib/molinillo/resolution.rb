@@ -216,7 +216,7 @@ module Molinillo
         return nil unless requirement
         seen = false
         state = states.reverse_each.find do |s|
-          seen ||= s.requirement == requirement
+          seen ||= s.requirement == requirement || s.requirements.include?(requirement)
           seen && s.requirement != requirement && !s.requirements.include?(requirement)
         end
         state && state.requirement

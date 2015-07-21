@@ -1,5 +1,14 @@
 # Molinillo Changelog
 
+## Master
+
+##### Bug Fixes
+
+* Ensure `Conflict#requirement_trees` is exhaustive.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [Bundler#3860](https://github.com/bundler/bundler/issues/3860)
+
+
 ## 0.3.0
 
 ##### Enhancements
