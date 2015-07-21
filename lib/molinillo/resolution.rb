@@ -12,13 +12,15 @@ module Molinillo
       # @attr [Object] locked_requirement the relevant locking requirement.
       # @attr [Array<Array<Object>>] requirement_trees the different requirement
       #   trees that led to every requirement for the conflicting name.
+      # @attr [{String=>Object}] activated_by_name the already-activated specs.
       Conflict = Struct.new(
         :requirement,
         :requirements,
         :existing,
         :possibility,
         :locked_requirement,
-        :requirement_trees
+        :requirement_trees,
+        :activated_by_name
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -257,14 +259,16 @@ module Molinillo
           vertex.payload,
           possibility,
           locked_requirement_named(name),
-          requirement_trees
+          requirement_trees,
+          Hash[activated.map { |v| [v.name, v.payload] }.select(&:last)]
         )
       end
 
       # @return [Array<Array<Object>>] The different requirement
       #   trees that led to every requirement for the current spec.
       def requirement_trees
-        activated.vertex_named(name).requirements.map { |r| requirement_tree_for(r) }
+        vertex = activated.vertex_named(name)
+        vertex.requirements.map { |r| requirement_tree_for(r) }
       end
 
       # @return [Array<Object>] the list of requirements that led to

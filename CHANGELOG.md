@@ -2,6 +2,12 @@
 
 ## Master
 
+##### Enhancements
+
+* Add `Conflict#activated_by_name` to allow even richer version conflict
+  messages.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Ensure `Conflict#requirement_trees` is exhaustive.  
