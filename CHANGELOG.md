@@ -1,5 +1,20 @@
 # Molinillo Changelog
 
+## Master
+
+##### Enhancements
+
+* Add `Conflict#activated_by_name` to allow even richer version conflict
+  messages.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+##### Bug Fixes
+
+* Ensure `Conflict#requirement_trees` is exhaustive.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [Bundler#3860](https://github.com/bundler/bundler/issues/3860)
+
+
 ## 0.3.0
 
 ##### Enhancements
