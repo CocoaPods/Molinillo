@@ -70,7 +70,7 @@ module Molinillo
         @graph.vertex_named(child.name).
           should.equal child
         child.predecessors.
-          should.equal Set[root2]
+          should.equal [root2]
         @graph.vertices.count.
           should.equal 2
       end
