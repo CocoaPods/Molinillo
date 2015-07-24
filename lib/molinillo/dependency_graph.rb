@@ -103,7 +103,7 @@ module Molinillo
     # @param [Object] payload
     # @return [Vertex] the vertex that was added to `self`
     def add_vertex(name, payload)
-      vertex = vertices[name] ||= Vertex.new(self, name, payload)
+      vertex = vertices[name] ||= Vertex.new(name, payload)
       vertex.payload ||= payload
       vertex
     end
@@ -167,9 +167,6 @@ module Molinillo
     # A vertex in a {DependencyGraph} that encapsulates a {#name} and a
     # {#payload}
     class Vertex
-      # @return [DependencyGraph] the graph this vertex is a node of
-      attr_accessor :graph
-
       # @return [String] the name of the vertex
       attr_accessor :name
 
@@ -180,11 +177,9 @@ module Molinillo
       #   this vertex
       attr_reader :explicit_requirements
 
-      # @param [DependencyGraph] graph see {#graph}
       # @param [String] name see {#name}
       # @param [Object] payload see {#payload}
-      def initialize(graph, name, payload)
-        @graph = graph
+      def initialize(name, payload)
         @name = name
         @payload = payload
         @explicit_requirements = []
