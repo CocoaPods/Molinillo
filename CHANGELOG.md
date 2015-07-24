@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.3.1
 
 ##### Enhancements
 
