@@ -258,12 +258,7 @@ module Molinillo
       # dependency graph?
       # @return true iff there is a path following edges within this {#graph}
       def path_to?(other)
-        walk = proc do |vertex|
-          return true if vertex.equal?(other)
-          vertex.successors.each(&walk)
-          false
-        end
-        walk.call(self)
+        equal?(other) || successors.any? { |v| v.path_to?(other) }
       end
 
       alias_method :descendent?, :path_to?
