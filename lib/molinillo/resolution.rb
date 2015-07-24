@@ -326,7 +326,7 @@ module Molinillo
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
-          push_state_for_requirements(new_requirements)
+          push_state_for_requirements(new_requirements, false)
         else
           return if attempt_to_swap_possibility
           create_conflict
@@ -395,15 +395,15 @@ module Molinillo
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.map(&:to_s).join(', ')})" }
         nested_dependencies.each { |d| activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d) }
 
-        push_state_for_requirements(requirements + nested_dependencies)
+        push_state_for_requirements(requirements + nested_dependencies, nested_dependencies.size > 0)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements, new_activated = activated.dup)
-        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts)
+      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated.dup)
+        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''
         possibilities = new_requirement ? search_for(new_requirement) : []
@@ -424,7 +424,7 @@ module Molinillo
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
           state.activated.detach_vertex_named(state.name)
-          push_state_for_requirements(state.requirements, state.activated)
+          push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
           states.push state
         end
