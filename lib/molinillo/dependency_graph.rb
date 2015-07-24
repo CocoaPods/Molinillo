@@ -207,6 +207,15 @@ module Molinillo
         incoming_edges.map(&:origin)
       end
 
+      # @return [Array<Vertex>] the vertices of {#graph} where `self` is a
+      #   {#descendent?}
+      def recursive_predecessors
+        vertices = predecessors
+        vertices += vertices.map(&:recursive_predecessors)
+        vertices.uniq!
+        vertices
+      end
+
       # @return [Array<Vertex>] the vertices of {#graph} that have an edge with
       #   `self` as their {Edge#origin}
       def successors
@@ -216,7 +225,10 @@ module Molinillo
       # @return [Array<Vertex>] the vertices of {#graph} where `self` is an
       #   {#ancestor?}
       def recursive_successors
-        successors + successors.map(&:recursive_successors)
+        vertices = successors
+        vertices += vertices.map(&:recursive_successors)
+        vertices.uniq!
+        vertices
       end
 
       # @return [String] a string suitable for debugging
