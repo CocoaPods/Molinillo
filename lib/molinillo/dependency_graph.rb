@@ -86,8 +86,7 @@ module Molinillo
     # @param [Object] requirement the requirement that is requiring the child
     # @return [void]
     def add_child_vertex(name, payload, parent_names, requirement)
-      vertex = vertex_named(name) || add_vertex(name, payload)
-      vertex.payload ||= payload
+      vertex = add_vertex(name, payload)
       parent_names.each do |parent_name|
         unless parent_name
           root_vertices[name] = vertex
@@ -104,7 +103,7 @@ module Molinillo
     # @return [Vertex] the vertex that was added to `self`
     def add_vertex(name, payload)
       vertex = vertices[name] ||= Vertex.new(self, name, payload)
-      vertex.payload = payload
+      vertex.payload ||= payload
       vertex
     end
 
