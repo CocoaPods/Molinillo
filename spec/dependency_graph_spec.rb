@@ -1,5 +1,4 @@
 require File.expand_path('../spec_helper', __FILE__)
-require 'set'
 
 module Molinillo
   describe DependencyGraph do
