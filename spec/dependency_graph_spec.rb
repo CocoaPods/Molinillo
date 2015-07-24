@@ -5,8 +5,8 @@ module Molinillo
     describe 'in general' do
       before do
         @graph = DependencyGraph.new
-        @root  = @graph.add_root_vertex('Root', 'Root')
-        @root2 = @graph.add_root_vertex('Root2', 'Root2')
+        @root  = @graph.add_vertex('Root', 'Root', true)
+        @root2 = @graph.add_vertex('Root2', 'Root2', true)
         @child = @graph.add_child_vertex('Child', 'Child', %w(Root), 'Child')
       end
 
@@ -39,7 +39,7 @@ module Molinillo
       end
 
       it 'detaches a root vertex without successors' do
-        root = @graph.add_root_vertex('root', 'root')
+        root = @graph.add_vertex('root', 'root', true)
         @graph.detach_vertex_named(root.name)
         @graph.vertex_named(root.name).
           should.equal nil
@@ -48,7 +48,7 @@ module Molinillo
       end
 
       it 'detaches a root vertex with successors' do
-        root = @graph.add_root_vertex('root', 'root')
+        root = @graph.add_vertex('root', 'root', true)
         child = @graph.add_child_vertex('child', 'child', %w(root), 'child')
         @graph.detach_vertex_named(root.name)
         @graph.vertex_named(root.name).
@@ -60,8 +60,8 @@ module Molinillo
       end
 
       it 'detaches a root vertex with successors with other parents' do
-        root = @graph.add_root_vertex('root', 'root')
-        root2 = @graph.add_root_vertex('root2', 'root2')
+        root = @graph.add_vertex('root', 'root', true)
+        root2 = @graph.add_vertex('root2', 'root2', true)
         child = @graph.add_child_vertex('child', 'child', %w(root root2), 'child')
         @graph.detach_vertex_named(root.name)
         @graph.vertex_named(root.name).

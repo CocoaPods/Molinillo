@@ -32,7 +32,7 @@ module Molinillo
                        graph.add_edge(parent, v, dependency)
                      end
                    else
-                     graph.add_root_vertex(name, dependency)
+                     graph.add_vertex(name, dependency, true)
                    end
             hash['dependencies'].each do |dep|
               add_dependencies_to_graph.call(graph, node, dep)

@@ -166,7 +166,7 @@ module Molinillo
       # @return [DependencyState] the initial state for the resolution
       def initial_state
         graph = DependencyGraph.new.tap do |dg|
-          original_requested.each { |r| dg.add_root_vertex(name_for(r), nil).tap { |v| v.explicit_requirements << r } }
+          original_requested.each { |r| dg.add_vertex(name_for(r), nil, true).tap { |v| v.explicit_requirements << r } }
         end
 
         requirements = sort_dependencies(original_requested, graph, {})

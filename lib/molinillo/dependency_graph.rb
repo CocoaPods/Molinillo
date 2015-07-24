@@ -37,26 +37,20 @@ module Molinillo
     # @attr [Object] requirement The requirement the directed edge represents
     Edge = Struct.new(:origin, :destination, :requirement)
 
-    # @return [{String => Vertex}] vertices that have no {Vertex#predecessors},
-    #   keyed by by {Vertex#name}
-    attr_reader :root_vertices
     # @return [{String => Vertex}] the vertices of the dependency graph, keyed
     #   by {Vertex#name}
     attr_reader :vertices
 
     def initialize
       @vertices = {}
-      @root_vertices = {}
     end
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
-    # have the correct {Vertex#graph} set
+    # are properly copied.
     def initialize_copy(other)
       super
       @vertices = {}
-      @root_vertices = {}
       traverse = lambda do |new_v, old_v|
-        new_v.explicit_requirements.replace old_v.explicit_requirements
         return if new_v.outgoing_edges.size == old_v.outgoing_edges.size
         old_v.outgoing_edges.each do |edge|
           destination = add_vertex(edge.destination.name, edge.destination.payload)
@@ -64,8 +58,10 @@ module Molinillo
           traverse.call(destination, edge.destination)
         end
       end
-      other.root_vertices.each do |name, vertex|
-        traverse.call(add_root_vertex(name, vertex.payload), vertex)
+      other.vertices.each do |name, vertex|
+        new_vertex = add_vertex(name, vertex.payload, vertex.root?)
+        new_vertex.explicit_requirements.replace(vertex.explicit_requirements)
+        traverse.call(new_vertex, vertex)
       end
     end
 
@@ -78,7 +74,12 @@ module Molinillo
     #   by a recursive traversal of each {#root_vertices} and its
     #   {Vertex#successors}
     def ==(other)
-      root_vertices == other.root_vertices
+      return false unless other
+      vertices.each do |name, vertex|
+        other_vertex = other.vertex_named(name)
+        return false unless other_vertex
+        return false unless other_vertex.successors.map(&:name).to_set == vertex.successors.map(&:name).to_set
+      end
     end
 
     # @param [String] name
@@ -90,7 +91,7 @@ module Molinillo
       vertex = add_vertex(name, payload)
       parent_names.each do |parent_name|
         unless parent_name
-          root_vertices[name] = vertex
+          vertex.root = true
           next
         end
         parent_node = vertex_named(parent_name)
@@ -102,18 +103,10 @@ module Molinillo
     # @param [String] name
     # @param [Object] payload
     # @return [Vertex] the vertex that was added to `self`
-    def add_vertex(name, payload)
+    def add_vertex(name, payload, root = false)
       vertex = vertices[name] ||= Vertex.new(name, payload)
       vertex.payload ||= payload
-      vertex
-    end
-
-    # @param [String] name
-    # @param [Object] payload
-    # @return [Vertex] the vertex that was added to `self`
-    def add_root_vertex(name, payload)
-      vertex = add_vertex(name, payload)
-      root_vertices[name] = vertex
+      vertex.root ||= root
       vertex
     end
 
@@ -123,11 +116,10 @@ module Molinillo
     # @return [void]
     def detach_vertex_named(name)
       return unless vertex = vertices.delete(name)
-      root_vertices.delete(name)
       vertex.outgoing_edges.each do |e|
         v = e.destination
         v.incoming_edges.delete(e)
-        detach_vertex_named(v.name) unless root_vertices[v.name] || v.predecessors.any?
+        detach_vertex_named(v.name) unless v.root? || v.predecessors.any?
       end
     end
 
@@ -140,7 +132,8 @@ module Molinillo
     # @param [String] name
     # @return [Vertex,nil] the root vertex with the given name
     def root_vertex_named(name)
-      root_vertices[name]
+      vertex = vertex_named(name)
+      vertex if vertex && vertex.root?
     end
 
     # Adds a new {Edge} to the dependency graph
@@ -176,6 +169,10 @@ module Molinillo
       # @return [Arrary<Object>] the explicit requirements that required
       #   this vertex
       attr_reader :explicit_requirements
+
+      # @return [Boolean] whether the vertex is considered a root vertex
+      attr_accessor :root
+      alias_method :root?, :root
 
       # @param [String] name see {#name}
       # @param [Object] payload see {#payload}
