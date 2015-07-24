@@ -200,28 +200,24 @@ module Molinillo
       # @return [Array<Edge>] the edges of {#graph} that have `self` as their
       #   {Edge#origin}
       attr_accessor :outgoing_edges
-      #   graph.edges.select { |e| e.origin.equal?(self) }
-      # end
 
       # @return [Array<Edge>] the edges of {#graph} that have `self` as their
       #   {Edge#destination}
       attr_accessor :incoming_edges
-      #   graph.edges.select { |e| e.destination.equal?(self) }
-      # end
 
-      # @return [Set<Vertex>] the vertices of {#graph} that have an edge with
+      # @return [Array<Vertex>] the vertices of {#graph} that have an edge with
       #   `self` as their {Edge#destination}
       def predecessors
         incoming_edges.map(&:origin)
       end
 
-      # @return [Set<Vertex>] the vertices of {#graph} that have an edge with
+      # @return [Array<Vertex>] the vertices of {#graph} that have an edge with
       #   `self` as their {Edge#origin}
       def successors
         outgoing_edges.map(&:destination)
       end
 
-      # @return [Set<Vertex>] the vertices of {#graph} where `self` is an
+      # @return [Array<Vertex>] the vertices of {#graph} where `self` is an
       #   {#ancestor?}
       def recursive_successors
         successors + successors.map(&:recursive_successors)
