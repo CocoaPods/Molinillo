@@ -208,7 +208,7 @@ module Molinillo
       #   {#descendent?}
       def recursive_predecessors
         vertices = predecessors
-        vertices += vertices.map(&:recursive_predecessors)
+        vertices += vertices.map(&:recursive_predecessors).flatten(1)
         vertices.uniq!
         vertices
       end
@@ -223,7 +223,7 @@ module Molinillo
       #   {#ancestor?}
       def recursive_successors
         vertices = successors
-        vertices += vertices.map(&:recursive_successors)
+        vertices += vertices.map(&:recursive_successors).flatten(1)
         vertices.uniq!
         vertices
       end
