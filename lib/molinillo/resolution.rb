@@ -166,7 +166,7 @@ module Molinillo
       # @return [DependencyState] the initial state for the resolution
       def initial_state
         graph = DependencyGraph.new.tap do |dg|
-          original_requested.each { |r| dg.add_root_vertex(name_for(r), nil).tap { |v| v.explicit_requirements << r } }
+          original_requested.each { |r| dg.add_vertex(name_for(r), nil, true).tap { |v| v.explicit_requirements << r } }
         end
 
         requirements = sort_dependencies(original_requested, graph, {})
@@ -252,7 +252,7 @@ module Molinillo
           name_for_explicit_dependency_source => vertex.explicit_requirements,
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
-        vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(*edge.requirements) }
+        vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
@@ -326,7 +326,7 @@ module Molinillo
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
-          push_state_for_requirements(new_requirements)
+          push_state_for_requirements(new_requirements, false)
         else
           return if attempt_to_swap_possibility
           create_conflict
@@ -393,17 +393,17 @@ module Molinillo
       def require_nested_dependencies_for(activated_spec)
         nested_dependencies = dependencies_for(activated_spec)
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.map(&:to_s).join(', ')})" }
-        nested_dependencies.each { |d|  activated.add_child_vertex name_for(d), nil, [name_for(activated_spec)], d }
+        nested_dependencies.each { |d| activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d) }
 
-        push_state_for_requirements(requirements + nested_dependencies)
+        push_state_for_requirements(requirements + nested_dependencies, nested_dependencies.size > 0)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements, new_activated = activated.dup)
-        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts)
+      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated.dup)
+        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''
         possibilities = new_requirement ? search_for(new_requirement) : []
@@ -424,7 +424,7 @@ module Molinillo
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
           state.activated.detach_vertex_named(state.name)
-          push_state_for_requirements(state.requirements, state.activated)
+          push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
           states.push state
         end

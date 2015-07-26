@@ -1,5 +1,25 @@
 # Molinillo Changelog
 
+## Master
+
+##### API Breaking Changes
+
+* The `DependencyGraph` no longer treats root vertices specially, nor does it
+  maintain a direct reference to `edges`. Additionally, `Vertex` no longer
+  has a reference to its parent graph.  
+
+##### Enhancements
+
+* Resolution has been sped up by 25x in some pathological cases, and in general
+  recursive operations on a `DependencyGraph` or `Vertex` are now `O(n)`.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [Bundler#3803](https://github.com/bundler/bundler/issues/3803)
+
+* Re-sorting of dependencies is skipped when the unresolved dependency list has
+  not changed, speeding up resolution of fully locked graphs.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+
 ## 0.3.1
 
 ##### Enhancements
