@@ -13,7 +13,9 @@ rvm:
 env:
   - LANG="en_US.UTF-8"
 
-install: rake bootstrap
+install:
+  - gem install bundler -v ">= 1.10"
+  - rake bootstrap
 
 script: bundle exec rake spec
 
