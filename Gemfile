@@ -13,7 +13,8 @@ group :development do
   # Ruby 1.8.7 fixes
   gem 'mime-types', '< 2.0'
   gem 'json_pure', '~> 1.8'
-  if RUBY_VERSION >= '2.0.0'
+
+  install_if RUBY_VERSION >= '2.0.0' do
     gem 'rubocop'
     gem 'codeclimate-test-reporter', :require => false
   end
