@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## 0.4.0
+## 0.4.0 (2015-07-27)
 
 ##### API Breaking Changes
 
@@ -20,7 +20,7 @@
   [Samuel Giddins](https://github.com/segiddins)
 
 
-## 0.3.1
+## 0.3.1 (2015-07-24)
 
 ##### Enhancements
 
@@ -35,7 +35,7 @@
   [Bundler#3860](https://github.com/bundler/bundler/issues/3860)
 
 
-## 0.3.0
+## 0.3.0 (2015-06-29)
 
 ##### Enhancements
 
@@ -43,7 +43,7 @@
   [Samuel Giddins](https://github.com/segiddins)
 
 
-## 0.2.3
+## 0.2.3 (2015-03-28)
 
 ##### Bug Fixes
 
@@ -53,7 +53,7 @@
   [Bundler#3525](https://github.com/bundler/bundler/issues/3525)
 
 
-## 0.2.2
+## 0.2.2 (2015-03-27)
 
 ##### Bug Fixes
 
@@ -62,14 +62,14 @@
   [Bundler#3516](https://github.com/bundler/bundler/issues/3516)
 
 
-## 0.2.1
+## 0.2.1 (2015-02-21)
 
 * Allow resolving some pathological cases where the backjumping algorithm would
   skip over a valid possibility.  
   [Samuel Giddins](https://github.com/segiddins)
 
 
-## 0.2.0
+## 0.2.0 (2014-12-25)
 
 * Institute stricter forward checking by backjumping to the source of a
   conflict, even if that source comes from the existing spec. This further
@@ -82,7 +82,7 @@
   [Samuel Giddins](https://github.com/segiddins)
 
 
-## 0.1.2
+## 0.1.2 (2014-11-19)
 
 ##### Enhancements
 
@@ -97,13 +97,13 @@
   [Samuel Giddins](https://github.com/segiddins)
   [CocoaPods#2805](https://github.com/CocoaPods/CocoaPods/issues/2805)
 
-## 0.1.1
+## 0.1.1 (2014-11-06)
 
 * Ensure that an unwanted exception is not raised when an error occurs before
   the initial state has been pushed upon the stack.  
   [Samuel Giddins](https://github.com/segiddins)
 
-## 0.1.0
+## 0.1.0 (2014-10-26)
 
 * Initial release.  
   [Samuel Giddins](https://github.com/segiddins)
