@@ -1,8 +1,9 @@
+require 'bundler/setup'
 
 # Set up coverage analysis
 #-----------------------------------------------------------------------------#
 
-if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0'
+if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0' && Bundler.current_ruby.mri?
   require 'simplecov'
   require 'codeclimate-test-reporter'
 
@@ -26,7 +27,6 @@ ROOT = Pathname.new(File.expand_path('../../', __FILE__))
 $LOAD_PATH.unshift((ROOT + 'lib').to_s)
 $LOAD_PATH.unshift((ROOT + 'spec').to_s)
 
-require 'bundler/setup'
 require 'bacon'
 require 'mocha-on-bacon'
 require 'pretty_bacon'
