@@ -17,6 +17,7 @@ module Molinillo
     #   during the resolution process
     attr_reader :resolver_ui
 
+    # Initializes a new resolver.
     # @param  [SpecificationProvider] specification_provider
     #   see {#specification_provider}
     # @param  [UI] resolver_ui

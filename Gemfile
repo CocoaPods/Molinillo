@@ -12,7 +12,8 @@ group :development do
   gem 'json_pure', '~> 1.8'
 
   install_if RUBY_VERSION >= '2.0.0' && Bundler.current_ruby.mri? do
-    gem 'rubocop'
     gem 'codeclimate-test-reporter', :require => false
+    gem 'inch_by_inch'
+    gem 'rubocop'
   end
 end
