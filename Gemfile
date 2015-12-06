@@ -3,10 +3,7 @@ source 'https://rubygems.org'
 gemspec
 
 group :development do
-  gem 'bacon'
-  gem 'mocha', '~> 0.11.4'
-  gem 'mocha-on-bacon'
-  gem 'prettybacon'
+  gem 'rspec'
   gem 'kicker'
   gem 'version_kit', :git => 'https://github.com/CocoaPods/VersionKit.git', :branch => 'master'
 

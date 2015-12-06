@@ -4,59 +4,49 @@ module Molinillo
   describe DependencyGraph do
     describe 'in general' do
       before do
-        @graph = DependencyGraph.new
+        @graph = described_class.new
         @root  = @graph.add_vertex('Root', 'Root', true)
         @root2 = @graph.add_vertex('Root2', 'Root2', true)
         @child = @graph.add_child_vertex('Child', 'Child', %w(Root), 'Child')
       end
 
       it 'returns root vertices by name' do
-        @graph.root_vertex_named('Root').
-          should.equal @root
+        expect(@graph.root_vertex_named('Root')).to eq(@root)
       end
 
       it 'returns vertices by name' do
-        @graph.vertex_named('Root').
-          should.equal @root
-        @graph.vertex_named('Child').
-          should.equal @child
+        expect(@graph.vertex_named('Root')).to eq(@root)
+        expect(@graph.vertex_named('Child')).to eq(@child)
       end
 
       it 'returns nil for non-existant root vertices' do
-        @graph.root_vertex_named('missing').
-          should.equal nil
+        expect(@graph.root_vertex_named('missing')).to be_nil
       end
 
       it 'returns nil for non-existant vertices' do
-        @graph.vertex_named('missing').
-          should.equal nil
+        expect(@graph.vertex_named('missing')).to be_nil
       end
     end
 
     describe 'detaching a node' do
       before do
-        @graph = DependencyGraph.new
+        @graph = described_class.new
       end
 
       it 'detaches a root vertex without successors' do
         root = @graph.add_vertex('root', 'root', true)
         @graph.detach_vertex_named(root.name)
-        @graph.vertex_named(root.name).
-          should.equal nil
-        @graph.vertices.count.
-          should.equal 0
+        expect(@graph.vertex_named(root.name)).to be_nil
+        expect(@graph.vertices).to be_empty
       end
 
       it 'detaches a root vertex with successors' do
         root = @graph.add_vertex('root', 'root', true)
         child = @graph.add_child_vertex('child', 'child', %w(root), 'child')
         @graph.detach_vertex_named(root.name)
-        @graph.vertex_named(root.name).
-          should.equal nil
-        @graph.vertex_named(child.name).
-          should.equal nil
-        @graph.vertices.count.
-          should.equal 0
+        expect(@graph.vertex_named(root.name)).to be_nil
+        expect(@graph.vertex_named(child.name)).to be_nil
+        expect(@graph.vertices).to be_empty
       end
 
       it 'detaches a root vertex with successors with other parents' do
@@ -64,14 +54,10 @@ module Molinillo
         root2 = @graph.add_vertex('root2', 'root2', true)
         child = @graph.add_child_vertex('child', 'child', %w(root root2), 'child')
         @graph.detach_vertex_named(root.name)
-        @graph.vertex_named(root.name).
-          should.equal nil
-        @graph.vertex_named(child.name).
-          should.equal child
-        child.predecessors.
-          should.equal [root2]
-        @graph.vertices.count.
-          should.equal 2
+        expect(@graph.vertex_named(root.name)).to be_nil
+        expect(@graph.vertex_named(child.name)).to eq(child)
+        expect(child.predecessors).to eq([root2])
+        expect(@graph.vertices.count).to eq(2)
       end
     end
   end

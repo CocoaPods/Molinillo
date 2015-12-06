@@ -65,27 +65,25 @@ module Molinillo
           resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
 
           if test_case.conflicts.any?
-            error = should.raise ResolverError do
-              resolve.call
+            expect { resolve.call }.to raise_error do |error|
+              expect(error).to be_a(ResolverError)
+              names = case error
+                      when CircularDependencyError
+                        error.dependencies.map(&:name)
+                      when VersionConflict
+                        error.conflicts.keys
+                      end.to_set
+              expect(names).to eq(test_case.conflicts)
             end
-
-            names = case error
-                    when CircularDependencyError
-                      error.dependencies.map(&:name)
-                    when VersionConflict
-                      error.conflicts.keys
-                    end.to_set
-            names.should.equal test_case.conflicts
           else
             result = resolve.call
 
             pretty_dependencies = lambda do |dg|
               dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
             end
-            pretty_dependencies.call(result).should.
-              equal pretty_dependencies.call(test_case.result)
+            expect(pretty_dependencies.call(result)).to eq(pretty_dependencies.call(test_case.result))
 
-            result.should.equal test_case.result
+            expect(result).to eq(test_case.result)
           end
         end
       end
@@ -93,36 +91,35 @@ module Molinillo
 
     describe 'in general' do
       before do
-        @resolver = Resolver.new(TestIndex.new('awesome'), TestUI.new)
+        @resolver = described_class.new(TestIndex.new('awesome'), TestUI.new)
       end
 
       it 'can resolve a list of 0 requirements' do
-        @resolver.resolve([], DependencyGraph.new).
-          should.equal DependencyGraph.new
+        expect(@resolver.resolve([], DependencyGraph.new)).to eq(DependencyGraph.new)
       end
 
       it 'includes the source of a user-specified unsatisfied dependency' do
-        should.raise VersionConflict do
+        expect do
           @resolver.resolve([VersionKit::Dependency.new('missing', '3.0')], DependencyGraph.new)
-        end.message.should.match /required by `user-specified dependency`/
+        end.to raise_error(VersionConflict, /required by `user-specified dependency`/)
       end
 
       it 'can handle when allow_missing? returns true for the only requirement' do
         dep = VersionKit::Dependency.new('missing', '3.0')
-        @resolver.specification_provider.stubs(:allow_missing?).with(dep).returns(true)
-        @resolver.resolve([dep], DependencyGraph.new).to_a.should == []
+        allow(@resolver.specification_provider).to receive(:allow_missing?).with(dep).and_return(true)
+        expect(@resolver.resolve([dep], DependencyGraph.new).to_a).to be_empty
       end
 
       it 'can handle when allow_missing? returns true for a nested requirement' do
-        index = TestIndex.new('awesome')
         dep = VersionKit::Dependency.new('actionpack', '1.2.3')
-        @resolver.specification_provider.stubs(:allow_missing?).
-          with { |d| d.name == 'activesupport' }.returns(true)
-        @resolver.specification_provider.stubs(:search_for).
-          with { |d| d.name == 'activesupport' }.returns([])
-        @resolver.specification_provider.stubs(:search_for).
-          with { |d| d.name == 'actionpack' }.returns(index.search_for(dep))
-        @resolver.resolve([dep], DependencyGraph.new).map(&:payload).map(&:to_s).should == ['actionpack (1.2.3)']
+        allow(@resolver.specification_provider).to receive(:allow_missing?).
+          with(have_attributes(:name => 'activesupport')).and_return(true)
+        allow(@resolver.specification_provider).to receive(:search_for).
+          with(have_attributes(:name => 'activesupport')).and_return([])
+        allow(@resolver.specification_provider).to receive(:search_for).
+          with(have_attributes(:name => 'actionpack')).and_call_original
+        resolved = @resolver.resolve([dep], DependencyGraph.new)
+        expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
       end
     end
   end
