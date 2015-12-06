@@ -21,6 +21,8 @@ end
 
 begin
   require 'bundler/gem_tasks'
+  ENABLE_RUBOCOP = Bundler.current_ruby.mri? && RUBY_VERSION >= '2.0.0'
+
   task :default => :spec
 
   #-- Specs ------------------------------------------------------------------#
@@ -31,7 +33,7 @@ begin
     files = FileList['spec/**/*_spec.rb'].shuffle.join(' ')
     sh "bundle exec bacon #{files}"
 
-    Rake::Task['rubocop'].invoke if RUBY_VERSION >= '2.0.0'
+    Rake::Task['rubocop'].invoke if ENABLE_RUBOCOP
   end
 
   #-- Kick -------------------------------------------------------------------#
@@ -43,7 +45,7 @@ begin
 
   #-- RuboCop ----------------------------------------------------------------#
 
-  if RUBY_VERSION >= '2.0.0'
+  if ENABLE_RUBOCOP
     require 'rubocop/rake_task'
     RuboCop::RakeTask.new
   end
