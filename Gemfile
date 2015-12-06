@@ -14,7 +14,7 @@ group :development do
   gem 'mime-types', '< 2.0'
   gem 'json_pure', '~> 1.8'
 
-  install_if RUBY_VERSION >= '2.0.0' do
+  install_if RUBY_VERSION >= '2.0.0' && Bundler.current_ruby.mri? do
     gem 'rubocop'
     gem 'codeclimate-test-reporter', :require => false
   end
