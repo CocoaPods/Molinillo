@@ -22,11 +22,7 @@ end
 begin
   require 'bundler/gem_tasks'
 
-  ENABLE_RUBOCOP = Bundler.current_ruby.mri? && RUBY_VERSION >= '2.0.0'
-
   default_tasks = [:spec]
-  default_tasks << :rubocop if ENABLE_RUBOCOP
-  task :default => default_tasks
 
   #-- Specs ------------------------------------------------------------------#
 
@@ -42,10 +38,25 @@ begin
 
   #-- RuboCop ----------------------------------------------------------------#
 
-  if ENABLE_RUBOCOP
+  if Bundler.rubygems.loaded_specs('rubocop')
     require 'rubocop/rake_task'
     RuboCop::RakeTask.new
+    default_tasks << :rubocop
   end
+
+  #-- Inch -------------------------------------------------------------------#
+
+  if Bundler.rubygems.loaded_specs('inch_by_inch')
+    require 'inch_by_inch/rake_task'
+    InchByInch::RakeTask.new do |task|
+      task.failing_grades << :U
+    end
+    default_tasks << :inch
+  end
+
+  #-- Default ----------------------------------------------------------------#
+
+  task :default => default_tasks
 
 rescue LoadError => e
   $stderr.puts "\033[0;31m" \
