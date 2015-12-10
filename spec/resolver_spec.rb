@@ -14,7 +14,6 @@ module Molinillo
 
     attr_accessor :name, :requested, :base, :conflicts, :resolver, :result, :index
 
-    # rubocop:disable Metrics/MethodLength
     def initialize(fixture_path)
       File.open(fixture_path) do |fixture|
         JSON.load(fixture).tap do |test_case|
@@ -54,7 +53,6 @@ module Molinillo
 
       self.resolver = Resolver.new(index, TestUI.new)
     end
-    # rubocop:enable Metrics/MethodLength
   end
 
   describe Resolver do
