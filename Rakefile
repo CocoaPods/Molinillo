@@ -48,22 +48,6 @@ begin
 
   task :no_warnings do
     files = FileList['lib/**/*.rb']
-    read_available_bytes = ->(io, chunk_size = 16_384, select_timeout = 0.02) do
-      buffer = []
-      return '' if io.closed? || io.eof?
-      # IO.select cannot be used here due to the fact that it
-      # just does not work on windows
-      loop do
-        begin
-          IO.select([io], nil, nil, select_timeout)
-          break if io.eof? # stop raising :-(
-          buffer << io.readpartial(chunk_size)
-        rescue EOFError
-          break
-        end
-      end
-      buffer.join
-    end
 
     out, err, status = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, wait_thr|
       files.each do |file|
@@ -71,7 +55,24 @@ begin
       end
       stdin.close
 
-      [read_available_bytes[stdout].strip, read_available_bytes[stderr].strip, wait_thr.value]
+      [stdout, stderr].map do |io|
+        chunk_size = 16_384
+        select_timeout = 0.02
+        buffer = []
+        next '' if io.closed? || io.eof?
+        # IO.select cannot be used here due to the fact that it
+        # just does not work on windows
+        loop do
+          begin
+            IO.select([io], nil, nil, select_timeout)
+            break if io.eof? # stop raising :-(
+            buffer << io.readpartial(chunk_size)
+          rescue EOFError
+            break
+          end
+        end
+        buffer.join.strip
+      end << wait_thr.value
     end
 
     raise 'Failed to check files for warnings' unless status.success?
