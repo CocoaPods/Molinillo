@@ -49,7 +49,7 @@ begin
   task :no_warnings do
     files = FileList['lib/**/*.rb']
 
-    out, err, status = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, wait_thr|
+    out, err = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, _wait_thr|
       files.each do |file|
         stdin.puts "require '#{file.gsub(%r{(^lib/|\.rb$)}, '')}'"
       end
@@ -72,10 +72,9 @@ begin
           end
         end
         buffer.join.strip
-      end << wait_thr.value
+      end
     end
 
-    raise 'Failed to check files for warnings' unless status.success?
     raise "Molinillo should contain no ruby warnings:\n\nout:\n#{out}\nerr:\n#{err}" unless out.empty? && err.empty?
   end
 
