@@ -8,7 +8,7 @@ GIT
 PATH
   remote: .
   specs:
-    molinillo (0.4.0)
+    molinillo (0.4.1)
 
 GEM
   remote: https://rubygems.org/
@@ -105,4 +105,4 @@ DEPENDENCIES
   version_kit!
 
 BUNDLED WITH
-   1.11.0.pre.2
+   1.11.2
