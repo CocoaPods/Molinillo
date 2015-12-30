@@ -1,5 +1,14 @@
 # Molinillo Changelog
 
+## Master
+
+##### Enhancements
+
+* Ensure every API is 100% documented.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [#22](https://github.com/CocoaPods/Molinillo/issues/22)
+
+
 ## 0.4.0 (2015-07-27)
 
 ##### API Breaking Changes
