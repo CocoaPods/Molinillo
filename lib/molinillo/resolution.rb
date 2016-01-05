@@ -356,7 +356,10 @@ module Molinillo
         payload = vertex.payload
         dep_names = dependencies_for(payload).map(&method(:name_for))
         vertex.successors.each do |succ|
-          activated.detach_vertex_named(succ.name) if !dep_names.include?(succ.name) && !succ.root? && succ.predecessors.to_a == [vertex]
+          if !dep_names.include?(succ.name) && !succ.root? && succ.predecessors.to_a == [vertex]
+            debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
+            activated.detach_vertex_named(succ.name)
+          end
         end
       end
 
