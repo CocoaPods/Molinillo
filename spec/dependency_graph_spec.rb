@@ -59,6 +59,15 @@ module Molinillo
         expect(child.predecessors).to eq([root2])
         expect(@graph.vertices.count).to eq(2)
       end
+
+      it 'detaches a vertex with predecessors' do
+        parent = @graph.add_vertex('parent', 'parent', true)
+        child = @graph.add_child_vertex('child', 'child', %w(parent), 'child')
+        @graph.detach_vertex_named(child.name)
+        expect(@graph.vertex_named(child.name)).to be_nil
+        expect(@graph.vertices).to eq(parent.name => parent)
+        expect(parent.outgoing_edges).to be_empty
+      end
     end
   end
 end
