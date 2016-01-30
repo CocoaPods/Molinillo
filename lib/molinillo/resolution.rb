@@ -352,6 +352,9 @@ module Molinillo
         activate_spec
       end
 
+      # Ensures there are no orphaned successors to the given {vertex}.
+      # @param [DependencyGraph::Vertex] vertex the vertex to fix up.
+      # @return [void]
       def fixup_swapped_children(vertex)
         payload = vertex.payload
         dep_names = dependencies_for(payload).map(&method(:name_for))
@@ -375,6 +378,8 @@ module Molinillo
         end
       end
 
+      # @return [Boolean] whether the current spec is satisfied as a new
+      # possibility.
       def new_spec_satisfied?
         locked_requirement = locked_requirement_named(name)
         requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
