@@ -18,5 +18,9 @@ module Molinillo
     def to_s
       "#{name} (#{version})"
     end
+
+    def inspect
+      "#<#{self.class} name=#{name} version=#{version} dependencies=[#{dependencies.join(', ')}]>"
+    end
   end
 end

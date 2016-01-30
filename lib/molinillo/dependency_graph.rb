@@ -126,6 +126,10 @@ module Molinillo
         v.incoming_edges.delete(e)
         detach_vertex_named(v.name) unless v.root? || v.predecessors.any?
       end
+      vertex.incoming_edges.each do |e|
+        v = e.origin
+        v.outgoing_edges.delete(e)
+      end
     end
 
     # @param [String] name

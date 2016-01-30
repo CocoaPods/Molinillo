@@ -1,5 +1,19 @@
 # Molinillo Changelog
 
+## Master
+
+##### Bug Fixes
+
+* Detaching a vertex correctly removes it from the list of successors of its
+  predecessors.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+* Vertices orphaned after swapping dependencies are properly cleaned up from the
+  graph of activated specs.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler/bundler#4198](https://github.com/bundler/bundler/issues/4198)
+
+
 ## 0.4.1 (2015-12-30)
 
 ##### Enhancements

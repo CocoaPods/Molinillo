@@ -77,9 +77,9 @@ module Molinillo
             result = resolve.call
 
             pretty_dependencies = lambda do |dg|
-              dg.vertices.values.map { |v| "#{v.payload.name} (#{v.payload.version})" }.sort
+              dg.vertices.values.map { |v| "#{v.name} (#{v.payload && v.payload.version})" }
             end
-            expect(pretty_dependencies.call(result)).to eq(pretty_dependencies.call(test_case.result))
+            expect(pretty_dependencies.call(result)).to contain_exactly(*pretty_dependencies.call(test_case.result))
 
             expect(result).to eq(test_case.result)
           end
