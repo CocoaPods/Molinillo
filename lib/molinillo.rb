@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'molinillo/gem_metadata'
 require 'molinillo/errors'
 require 'molinillo/resolver'

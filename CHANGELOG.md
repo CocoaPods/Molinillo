@@ -4,7 +4,8 @@
 
 ##### Enhancements
 
-* None.  
+* Add frozen string literal comments to all ruby files.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
