@@ -47,6 +47,8 @@ begin
   #-- Ruby Warnings ----------------------------------------------------------#
 
   task :no_warnings do
+    next if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
+
     files = FileList['lib/**/*.rb']
 
     out, err = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, _wait_thr|
