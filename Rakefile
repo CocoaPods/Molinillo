@@ -22,7 +22,7 @@ end
 begin
   require 'bundler/gem_tasks'
 
-  default_tasks = [:spec]
+  default_tasks = [:spec, :no_warnings]
 
   #-- Specs ------------------------------------------------------------------#
 
@@ -42,6 +42,42 @@ begin
     require 'rubocop/rake_task'
     RuboCop::RakeTask.new
     default_tasks << :rubocop
+  end
+
+  #-- Ruby Warnings ----------------------------------------------------------#
+
+  task :no_warnings do
+    next if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
+
+    files = FileList['lib/**/*.rb']
+
+    out, err = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, _wait_thr|
+      files.each do |file|
+        stdin.puts "require '#{file.gsub(%r{(^lib/|\.rb$)}, '')}'"
+      end
+      stdin.close
+
+      [stdout, stderr].map do |io|
+        chunk_size = 16_384
+        select_timeout = 0.02
+        buffer = []
+        next '' if io.closed? || io.eof?
+        # IO.select cannot be used here due to the fact that it
+        # just does not work on windows
+        loop do
+          begin
+            IO.select([io], nil, nil, select_timeout)
+            break if io.eof? # stop raising :-(
+            buffer << io.readpartial(chunk_size)
+          rescue EOFError
+            break
+          end
+        end
+        buffer.join.strip
+      end
+    end
+
+    raise "Molinillo should contain no ruby warnings:\n\nout:\n#{out}\nerr:\n#{err}" unless out.empty? && err.empty?
   end
 
   #-- Inch -------------------------------------------------------------------#
