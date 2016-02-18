@@ -9,7 +9,9 @@
 
 ##### Bug Fixes
 
-* None.  
+* Prune the dependency list when removing an orphan after swapping.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler/bundler#4276](https://github.com/bundler/bundler/issues/4276)
 
 
 ## 0.4.2 (2016-01-30)
