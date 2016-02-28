@@ -1,10 +1,6 @@
 # Molinillo Changelog
 
-## Master
-
-##### Enhancements
-
-* None.  
+## 0.4.4 (2016-02-28)
 
 ##### Bug Fixes
 
