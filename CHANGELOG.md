@@ -8,7 +8,8 @@
 
 ##### Bug Fixes
 
-* None.  
+* Fix mutating a frozen string in `NoSuchDependencyError#message`.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 
 ## 0.4.3 (2016-02-18)
