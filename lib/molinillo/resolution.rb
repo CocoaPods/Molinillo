@@ -131,7 +131,7 @@ module Molinillo
             specification_provider.send(instance_method, *args, &block)
           rescue NoSuchDependencyError => error
             if state
-              vertex = activated.vertex_named(name_for error.dependency)
+              vertex = activated.vertex_named(name_for(error.dependency))
               error.required_by += vertex.incoming_edges.map { |e| e.origin.name }
               error.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
             end
@@ -345,7 +345,7 @@ module Molinillo
         vertex = swapped.vertex_named(name)
         vertex.payload = possibility
         return unless vertex.requirements.
-            all? { |r| requirement_satisfied_by?(r, swapped, possibility) }
+                      all? { |r| requirement_satisfied_by?(r, swapped, possibility) }
         return unless new_spec_satisfied?
         actual_vertex = activated.vertex_named(name)
         actual_vertex.payload = possibility
@@ -420,7 +420,7 @@ module Molinillo
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
         nested_dependencies.each { |d| activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d) }
 
-        push_state_for_requirements(requirements + nested_dependencies, nested_dependencies.size > 0)
+        push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
