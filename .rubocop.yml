@@ -11,7 +11,7 @@ AllCops:
     - 'vendor/**/*'
     - 'spec/resolver_integration_specs/**/*'
 
-Style/TrailingComma:
+Style/TrailingCommaInArguments:
   Enabled: false
 
 RaiseArgs:
