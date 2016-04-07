@@ -363,7 +363,13 @@ module Molinillo
           if !dep_names.include?(succ.name) && !succ.root? && succ.predecessors.to_a == [vertex]
             debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
             activated.detach_vertex_named(succ.name)
-            requirements.delete_if { |r| name_for(r) == succ.name }
+
+            all_successor_names = succ.recursive_successors.map(&:name)
+
+            requirements.delete_if do |requirement|
+              requirement_name = name_for(requirement)
+              (requirement_name == succ.name) || all_successor_names.include?(requirement_name)
+            end
           end
         end
       end
