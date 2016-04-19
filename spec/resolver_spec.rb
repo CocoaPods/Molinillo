@@ -119,6 +119,51 @@ module Molinillo
         resolved = @resolver.resolve([dep], DependencyGraph.new)
         expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
       end
+
+      # Regression test. See: https://github.com/CocoaPods/Molinillo/pull/38
+      it 'can resolve when swapping children with successors' do
+        swap_child_with_successors_index = Class.new(TestIndex) do
+          # The bug we want to write a regression test for only occurs when
+          # Molinillo processes dependencies in a specific order for the given
+          # index and demands. This sorting logic ensures we hit the repro case
+          # when using the index file "swap_child_with_successors"
+          def sort_dependencies(dependencies, activated, conflicts)
+            dependencies.sort_by do |dependency|
+              name = name_for(dependency)
+              [
+                activated.vertex_named(name).payload ? 0 : 1,
+                conflicts[name] ? 0 : 1,
+                activated.vertex_named(name).payload ? 0 : versions_of(name),
+              ]
+            end
+          end
+
+          def versions_of(dependency_name)
+            specs[dependency_name].count
+          end
+        end
+
+        index = swap_child_with_successors_index.new('swap_child_with_successors')
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
+          VersionKit::Dependency.new('nginx', '>= 0.0.0'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'build-essential (2.4.0)',
+          '7-zip (1.0.0)',
+          'windows (1.39.2)',
+          'chef-handler (1.3.0)',
+          'nginx (2.7.6)',
+          'yum-epel (0.6.6)',
+          'yum (3.10.0)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
     end
   end
 end
