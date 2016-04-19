@@ -8,7 +8,9 @@
 
 ##### Bug Fixes
 
-* None.  
+* Recursively prune requirements when removing an orphan after swapping.  
+  [Daniel DeLeo](https://github.com/danielsdeleo)
+  [berkshelf/solve#57](https://github.com/berkshelf/solve/issues/57)
 
 
 ## 0.4.4 (2016-02-28)
