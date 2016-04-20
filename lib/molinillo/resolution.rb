@@ -433,7 +433,7 @@ module Molinillo
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated.dup)
+      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated)
         new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''

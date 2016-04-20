@@ -4,7 +4,9 @@
 
 ##### Enhancements
 
-* None.  
+* For performance, don't needlessly dup objects in
+  `Resolution#push_state_for_requirements`.
+  [Joe Rafaniello](https://github.com/jrafanie)
 
 ##### Bug Fixes
 
