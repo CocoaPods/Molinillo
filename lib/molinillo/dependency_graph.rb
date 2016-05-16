@@ -88,6 +88,21 @@ module Molinillo
       "#{self.class}:#{vertices.values.inspect}"
     end
 
+    def to_dot
+      String.new.tap do |dot|
+        dot << "digraph G {\n"
+        vertices.each do |n, v|
+          dot << "  #{n} [label=\"{#{n}|#{v.payload.to_s}}\"]\n"
+          v.outgoing_edges.each do |e|
+            dot << "  #{e.origin.name} -> #{e.destination.name}"
+            dot << " [label=\"#{e.requirement}\"]" if e.requirement
+            dot << "\n"
+          end
+        end
+        dot << "}"
+      end
+    end
+
     # @return [Boolean] whether the two dependency graphs are equal, determined
     #   by a recursive traversal of each {#root_vertices} and its
     #   {Vertex#successors}
