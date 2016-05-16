@@ -44,10 +44,22 @@ module Molinillo
     #   by {Vertex#name}
     attr_reader :vertices
 
+    attr_reader :log
+
     # Initializes an empty dependency graph
     def initialize
       @vertices = {}
+      @log = Log.new
     end
+
+    def self.delegate_to_log(method)
+      define_method method do |*args|
+        log.send(method, self, *args)
+      end
+    end
+
+    delegate_to_log :tag
+    delegate_to_log :rewind_to
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
     # are properly copied.
@@ -55,6 +67,7 @@ module Molinillo
     def initialize_copy(other)
       super
       @vertices = {}
+      @log = other.log.dup
       traverse = lambda do |new_v, old_v|
         return if new_v.outgoing_edges.size == old_v.outgoing_edges.size
         old_v.outgoing_edges.each do |edge|
@@ -93,12 +106,9 @@ module Molinillo
     # @param [Object] requirement the requirement that is requiring the child
     # @return [void]
     def add_child_vertex(name, payload, parent_names, requirement)
-      vertex = add_vertex(name, payload)
+      root = !parent_names.delete(nil) { true }
+      vertex = add_vertex(name, payload, root)
       parent_names.each do |parent_name|
-        unless parent_name
-          vertex.root = true
-          next
-        end
         parent_node = vertex_named(parent_name)
         add_edge(parent_node, vertex, requirement)
       end
@@ -110,10 +120,7 @@ module Molinillo
     # @param [Object] payload
     # @return [Vertex] the vertex that was added to `self`
     def add_vertex(name, payload, root = false)
-      vertex = vertices[name] ||= Vertex.new(name, payload)
-      vertex.payload ||= payload
-      vertex.root ||= root
-      vertex
+      log.add_vertex(self, name, payload, root)
     end
 
     # Detaches the {#vertex_named} `name` {Vertex} from the graph, recursively
@@ -121,16 +128,7 @@ module Molinillo
     # @param [String] name
     # @return [void]
     def detach_vertex_named(name)
-      return unless vertex = vertices.delete(name)
-      vertex.outgoing_edges.each do |e|
-        v = e.destination
-        v.incoming_edges.delete(e)
-        detach_vertex_named(v.name) unless v.root? || v.predecessors.any?
-      end
-      vertex.incoming_edges.each do |e|
-        v = e.origin
-        v.outgoing_edges.delete(e)
-      end
+      log.detach_vertex_named(self, name)
     end
 
     # @param [String] name
@@ -155,7 +153,11 @@ module Molinillo
       if destination.path_to?(origin)
         raise CircularDependencyError.new([origin, destination])
       end
-      add_edge_no_circular(origin, destination, requirement)
+      log.add_edge(self, origin, destination, requirement)
+    end
+
+    def set_payload(name, payload)
+      log.set_payload(self, name, payload)
     end
 
     private
@@ -289,3 +291,5 @@ module Molinillo
     end
   end
 end
+
+require 'molinillo/dependency_graph/log'

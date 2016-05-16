@@ -67,7 +67,12 @@ module Molinillo
           indicate_progress
           if state.respond_to?(:pop_possibility_state) # DependencyState
             debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
-            state.pop_possibility_state.tap { |s| states.push(s) if s }
+            state.pop_possibility_state.tap do |s|
+              if s
+                states.push(s)
+                activated.tag(s)
+              end
+            end
           end
           process_topmost_state
         end
@@ -169,6 +174,7 @@ module Molinillo
       def initial_state
         graph = DependencyGraph.new.tap do |dg|
           original_requested.each { |r| dg.add_vertex(name_for(r), nil, true).tap { |v| v.explicit_requirements << r } }
+          dg.tag(:initial_state)
         end
 
         requirements = sort_dependencies(original_requested, graph, {})
@@ -189,8 +195,9 @@ module Molinillo
       def unwind_for_conflict
         debug(depth) { "Unwinding for conflict: #{requirement}" }
         conflicts.tap do |c|
-          states.slice!((state_index_for_unwind + 1)..-1)
+          sliced_states = states.slice!((state_index_for_unwind + 1)..-1)
           raise VersionConflict.new(c) unless state
+          activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
         end
       end
@@ -230,7 +237,7 @@ module Molinillo
       #   with the given name being activated.
       def requirement_for_existing_name(name)
         return nil unless activated.vertex_named(name).payload
-        states.reverse_each.find { |s| !s.activated.vertex_named(name).payload }.requirement
+        states.find { |s| s.name == name }.requirement
       end
 
       # @return [ResolutionState] the state whose `requirement` is the given
@@ -341,15 +348,16 @@ module Molinillo
       # spec with the given name
       # @return [Boolean] Whether the possibility was swapped into {#activated}
       def attempt_to_swap_possibility
-        swapped = activated.dup
-        vertex = swapped.vertex_named(name)
-        vertex.payload = possibility
-        return unless vertex.requirements.
-                      all? { |r| requirement_satisfied_by?(r, swapped, possibility) }
-        return unless new_spec_satisfied?
-        actual_vertex = activated.vertex_named(name)
-        actual_vertex.payload = possibility
-        fixup_swapped_children(actual_vertex)
+        activated.tag(:swap)
+        vertex = activated.vertex_named(name)
+        activated.set_payload(name, possibility)
+        if !vertex.requirements.
+           all? { |r| requirement_satisfied_by?(r, activated, possibility) } ||
+            !new_spec_satisfied?
+          activated.rewind_to(:swap)
+          return
+        end
+        fixup_swapped_children(vertex)
         activate_spec
       end
 
@@ -412,8 +420,7 @@ module Molinillo
       def activate_spec
         conflicts.delete(name)
         debug(depth) { 'Activated ' + name + ' at ' + possibility.to_s }
-        vertex = activated.vertex_named(name)
-        vertex.payload = possibility
+        activated.set_payload(name, possibility)
         require_nested_dependencies_for(possibility)
       end
 
@@ -457,7 +464,7 @@ module Molinillo
           state.activated.detach_vertex_named(state.name)
           push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
-          states.push state
+          states.push(state).tap { activated.tag(state) }
         end
       end
     end

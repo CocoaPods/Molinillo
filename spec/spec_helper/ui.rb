@@ -4,10 +4,10 @@ module Molinillo
 
     def output
       @output ||= if debug?
-        $stderr
-      else
-        File.open('/dev/null', 'w')
-      end
+                    $stderr
+                  else
+                    File.open('/dev/null', 'w')
+                  end
     end
   end
 end
