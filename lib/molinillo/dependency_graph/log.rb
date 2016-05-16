@@ -75,8 +75,9 @@ module Molinillo
           end
         end
 
-        def down(_graph)
+        def down(graph)
           return unless @vertex
+          graph.vertices[name] = @vertex
           @vertex.outgoing_edges.each do |e|
             e.destination.incoming_edges << e
           end
