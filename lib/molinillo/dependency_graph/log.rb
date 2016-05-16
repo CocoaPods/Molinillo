@@ -3,6 +3,8 @@ require 'molinillo/dependency_graph/action'
 module Molinillo
   class DependencyGraph
     class Log
+      LOG_ACTIONS = !ENV["MOLINILLO_DEBUG_GRAPH"].nil?
+
       def self.action(name__, parameters = nil, &blk)
         name__ = name__.to_sym
         cls = Class.new(Action) do
@@ -19,6 +21,10 @@ module Molinillo
                 #{parameters.map { |p| "@#{p} = #{p};" }.join}
                 @args = [#{parameters.join(', ')}]
               end
+
+              define_method(:_log) do |direction|
+                $stderr.puts "[\#{direction}] #{name}(\#{@args.map(&:inspect).join(', ')})"
+              end
             EOS
           end
           module_exec(&blk)
@@ -27,6 +33,7 @@ module Molinillo
         define_method(name__) do |graph, *args|
           action = cls.new(*args)
           @actions << action
+          action._log(:up) if LOG_ACTIONS
           action.up(graph)
         end
       end
@@ -120,7 +127,10 @@ module Molinillo
 
       def pop!(graph)
         @actions.pop.tap do |action|
-          action.down(graph) if action
+          if action
+            action._log(:down) if LOG_ACTIONS
+            action.down(graph)
+          end
         end
       end
 
