@@ -3,7 +3,11 @@ module Molinillo
     include UI
 
     def output
-      @output ||= File.open('/dev/null', 'w')
+      @output ||= if debug?
+        $stderr
+      else
+        File.open('/dev/null', 'w')
+      end
     end
   end
 end
