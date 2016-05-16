@@ -50,8 +50,10 @@ module Molinillo
 
       action(:add_vertex) do
         def up(graph)
-          existing = graph.vertices[name]
-          @existing = existing && [existing.payload, existing.root]
+          if existing = graph.vertices[name]
+            @existing_payload = existing.payload
+            @existing_root = existing.root
+          end
           vertex = graph.vertices[name] ||= Vertex.new(name, payload)
           vertex.payload ||= payload
           vertex.root ||= root
@@ -59,9 +61,10 @@ module Molinillo
         end
 
         def down(graph)
-          if @existing
+          if defined?(@existing_payload)
             vertex = graph.vertices[name]
-            vertex.payload, vertex.root = @existing
+            vertex.payload = @existing_payload
+            vertex.root = @existing_root
           else
             graph.vertices.delete(name)
           end
@@ -94,22 +97,22 @@ module Molinillo
         end
       end
 
-      action(:add_edge) do
-        def up(_graph)
-          edge = make_edge
-          origin.outgoing_edges << edge
-          destination.incoming_edges << edge
+      action(:add_edge_no_circular) do
+        def up(graph)
+          edge = make_edge(graph)
+          edge.origin.outgoing_edges << edge
+          edge.destination.incoming_edges << edge
           edge
         end
 
-        def down(_graph)
-          edge = make_edge
-          origin.outgoing_edges.delete(edge)
-          destination.incoming_edges.delete(edge)
+        def down(graph)
+          edge = make_edge(graph)
+          edge.origin.outgoing_edges.delete(edge)
+          edge.destination.incoming_edges.delete(edge)
         end
 
-        def make_edge
-          Edge.new(origin, destination, requirement)
+        def make_edge(graph)
+          Edge.new(graph.vertex_named(origin), graph.vertex_named(destination), requirement)
         end
       end
 

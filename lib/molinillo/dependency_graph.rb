@@ -168,7 +168,7 @@ module Molinillo
       if destination.path_to?(origin)
         raise CircularDependencyError.new([origin, destination])
       end
-      log.add_edge(self, origin, destination, requirement)
+      add_edge_no_circular(origin, destination, requirement)
     end
 
     def set_payload(name, payload)
@@ -180,10 +180,7 @@ module Molinillo
     # Adds a new {Edge} to the dependency graph without checking for
     # circularity.
     def add_edge_no_circular(origin, destination, requirement)
-      edge = Edge.new(origin, destination, requirement)
-      origin.outgoing_edges << edge
-      destination.incoming_edges << edge
-      edge
+      log.add_edge_no_circular(self, origin.name, destination.name, requirement)
     end
 
     # A vertex in a {DependencyGraph} that encapsulates a {#name} and a
