@@ -12,6 +12,8 @@ module Molinillo
       def down(_graph)
         raise 'Abstract'
       end
+
+      attr_accessor :previous, :next
     end
   end
 end

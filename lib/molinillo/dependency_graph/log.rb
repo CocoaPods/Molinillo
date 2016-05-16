@@ -3,7 +3,7 @@ require 'molinillo/dependency_graph/action'
 module Molinillo
   class DependencyGraph
     class Log
-      LOG_ACTIONS = !ENV["MOLINILLO_DEBUG_GRAPH"].nil?
+      LOG_ACTIONS = !ENV['MOLINILLO_DEBUG_GRAPH'].nil?
 
       def self.action(name__, parameters = nil, &blk)
         name__ = name__.to_sym
@@ -32,14 +32,17 @@ module Molinillo
 
         define_method(name__) do |graph, *args|
           action = cls.new(*args)
-          @actions << action
+          action.previous = @current_action
+          @current_action.next = action if @current_action
+          @current_action = action
+          @first_action ||= action
           action._log(:up) if LOG_ACTIONS
           action.up(graph)
         end
       end
 
       def initialize
-        @actions = []
+        @current_action = @first_action = nil
       end
 
       action(:tag, %w(tag)) do
@@ -129,12 +132,35 @@ module Molinillo
       end
 
       def pop!(graph)
-        @actions.pop.tap do |action|
-          if action
-            action._log(:down) if LOG_ACTIONS
-            action.down(graph)
-          end
+        return unless action = @current_action
+        unless @current_action = action.previous
+          @first_action = nil
         end
+        action._log(:down) if LOG_ACTIONS
+        action.down(graph)
+        action
+      end
+
+      extend Enumerable
+
+      def each
+        action = @first_action
+        loop do
+          break unless action
+          yield action
+          action = action.next
+        end
+        self
+      end
+
+      def reverse_each
+        action = @current_action
+        loop do
+          break unless action
+          yield action
+          action = action.previous
+        end
+        self
       end
 
       def rewind_to(graph, tag)
