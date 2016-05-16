@@ -89,18 +89,18 @@ module Molinillo
     end
 
     def to_dot
-      String.new.tap do |dot|
-        dot << "digraph G {\n"
-        vertices.each do |n, v|
-          dot << "  #{n} [label=\"{#{n}|#{v.payload.to_s}}\"]\n"
-          v.outgoing_edges.each do |e|
-            dot << "  #{e.origin.name} -> #{e.destination.name}"
-            dot << " [label=\"#{e.requirement}\"]" if e.requirement
-            dot << "\n"
-          end
+      dot_vertices = []
+      dot_edges = []
+      vertices.each do |n, v|
+        dot_vertices << "  #{n} [label=\"{#{n}|#{v.payload}}\"]"
+        v.outgoing_edges.each do |e|
+          dot_edges << "  #{e.origin.name} -> #{e.destination.name} [label=\"#{e.requirement}\"]"
         end
-        dot << "}"
       end
+      dot_vertices.sort!
+      dot_edges.sort!
+      dot = dot_vertices.unshift('digraph G {').push('') + dot_edges.push('}')
+      dot.join("\n")
     end
 
     # @return [Boolean] whether the two dependency graphs are equal, determined
