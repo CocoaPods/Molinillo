@@ -262,6 +262,8 @@ module Molinillo
           name_for_locking_dependency_source => Array(locked_requirement_named(name)),
         }
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
+        activated_by_name = {}
+        activated.each { |v| activated_by_name[v.name] = v.payload if v.payload }
         conflicts[name] = Conflict.new(
           requirement,
           Hash[requirements.select { |_, r| !r.empty? }],
@@ -269,7 +271,7 @@ module Molinillo
           possibility,
           locked_requirement_named(name),
           requirement_trees,
-          Hash[activated.map { |v| [v.name, v.payload] }.select(&:last)]
+          activated_by_name
         )
       end
 
@@ -443,7 +445,7 @@ module Molinillo
       def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated)
         new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
-        new_name = new_requirement ? name_for(new_requirement) : ''
+        new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = new_requirement ? search_for(new_requirement) : []
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
