@@ -57,7 +57,8 @@ module Molinillo
             @existing_payload = existing.payload
             @existing_root = existing.root
           end
-          vertex = graph.vertices[name] ||= Vertex.new(name, payload)
+          vertex = existing || Vertex.new(name, payload)
+          graph.vertices[vertex.name] = vertex
           vertex.payload ||= payload
           vertex.root ||= root
           vertex
@@ -90,7 +91,7 @@ module Molinillo
 
         def down(graph)
           return unless @vertex
-          graph.vertices[name] = @vertex
+          graph.vertices[@vertex.name] = @vertex
           @vertex.outgoing_edges.each do |e|
             e.destination.incoming_edges << e
           end

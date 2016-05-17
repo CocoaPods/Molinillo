@@ -204,7 +204,7 @@ module Molinillo
       # @param [String] name see {#name}
       # @param [Object] payload see {#payload}
       def initialize(name, payload)
-        @name = name
+        @name = name.frozen? ? name : name.dup.freeze
         @payload = payload
         @explicit_requirements = []
         @outgoing_edges = []
