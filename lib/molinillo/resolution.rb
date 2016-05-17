@@ -255,7 +255,9 @@ module Molinillo
         locked_requirement = locked_requirement_named(name)
 
         requirements = {}
-        requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements unless vertex.explicit_requirements.empty?
+        unless vertex.explicit_requirements.empty?
+          requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements
+        end
         requirements[name_for_locking_dependency_source] = [locked_requirement] if locked_requirement
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
 
