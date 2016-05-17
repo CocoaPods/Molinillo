@@ -52,6 +52,7 @@ module Molinillo
         @base = base
         @states = []
         @iteration_counter = 0
+        @parent_of = {}
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -224,13 +225,7 @@ module Molinillo
       # @return [Object] the requirement that led to `requirement` being added
       #   to the list of requirements.
       def parent_of(requirement)
-        return nil unless requirement
-        seen = false
-        state = states.reverse_each.find do |s|
-          seen ||= s.requirement == requirement || s.requirements.include?(requirement)
-          seen && s.requirement != requirement && !s.requirements.include?(requirement)
-        end
-        state && state.requirement
+        @parent_of[requirement]
       end
 
       # @return [Object] the requirement that led to a version of a possibility
@@ -433,7 +428,10 @@ module Molinillo
       def require_nested_dependencies_for(activated_spec)
         nested_dependencies = dependencies_for(activated_spec)
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
-        nested_dependencies.each { |d| activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d) }
+        nested_dependencies.each do |d|
+          activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d)
+          @parent_of[d] = requirement
+        end
 
         push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)
       end
