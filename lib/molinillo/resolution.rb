@@ -124,27 +124,11 @@ module Molinillo
       require 'molinillo/state'
       require 'molinillo/modules/specification_provider'
 
-      ResolutionState.new.members.each do |member|
-        define_method member do |*args, &block|
-          current_state = state || ResolutionState.empty
-          current_state.send(member, *args, &block)
-        end
-      end
+      require 'molinillo/delegates/resolution_state'
+      require 'molinillo/delegates/specification_provider'
 
-      SpecificationProvider.instance_methods(false).each do |instance_method|
-        define_method instance_method do |*args, &block|
-          begin
-            specification_provider.send(instance_method, *args, &block)
-          rescue NoSuchDependencyError => error
-            if state
-              vertex = activated.vertex_named(name_for(error.dependency))
-              error.required_by += vertex.incoming_edges.map { |e| e.origin.name }
-              error.required_by << name_for_explicit_dependency_source unless vertex.explicit_requirements.empty?
-            end
-            raise
-          end
-        end
-      end
+      include Molinillo::Delegates::ResolutionState
+      include Molinillo::Delegates::SpecificationProvider
 
       # Processes the topmost available {RequirementState} on the stack
       # @return [void]

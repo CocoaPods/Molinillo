@@ -52,14 +52,13 @@ module Molinillo
       @log = Log.new
     end
 
-    def self.delegate_to_log(method)
-      define_method method do |*args|
-        log.send(method, self, *args)
-      end
+    def tag(tag)
+      log.tag(self, tag)
     end
 
-    delegate_to_log :tag
-    delegate_to_log :rewind_to
+    def rewind_to(tag)
+      log.rewind_to(self, tag)
+    end
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
     # are properly copied.
