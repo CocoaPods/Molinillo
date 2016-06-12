@@ -1,14 +1,18 @@
+# frozen_string_literal: true
 require 'molinillo/dependency_graph/action'
 module Molinillo
   class DependencyGraph
     # @!visibility private
-    class DetachVertexNamed < Action # :nodoc:
+    # @see DependencyGraph#detach_vertex_named
+    class DetachVertexNamed < Action
       # @!group Action
 
+      # (see Action#name)
       def self.name
         :add_vertex
       end
 
+      # (see Action#up)
       def up(graph)
         return unless @vertex = graph.vertices.delete(name)
         @vertex.outgoing_edges.each do |e|
@@ -22,6 +26,7 @@ module Molinillo
         end
       end
 
+      # (see Action#down)
       def down(graph)
         return unless @vertex
         graph.vertices[@vertex.name] = @vertex
@@ -35,8 +40,11 @@ module Molinillo
 
       # @!group DetachVertexNamed
 
+      # @return [String] the name of the vertex to detach
       attr_reader :name
 
+      # Initialize an action to detach a vertex from a dependency graph
+      # @param [String] name the name of the vertex to detach
       def initialize(name)
         @name = name
       end
