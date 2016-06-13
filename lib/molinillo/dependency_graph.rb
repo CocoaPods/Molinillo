@@ -2,6 +2,9 @@
 require 'set'
 require 'tsort'
 
+require 'molinillo/dependency_graph/log'
+require 'molinillo/dependency_graph/vertex'
+
 module Molinillo
   # A directed acyclic graph that is tuned to hold named dependencies
   class DependencyGraph
@@ -10,15 +13,16 @@ module Molinillo
     # Enumerates through the vertices of the graph.
     # @return [Array<Vertex>] The graph's vertices.
     def each
+      return vertices.values.each unless block_given?
       vertices.values.each { |v| yield v }
     end
 
     include TSort
 
-    # @visibility private
+    # @!visibility private
     alias tsort_each_node each
 
-    # @visibility private
+    # @!visibility private
     def tsort_each_child(vertex, &block)
       vertex.successors.each(&block)
     end
@@ -44,6 +48,7 @@ module Molinillo
     #   by {Vertex#name}
     attr_reader :vertices
 
+    # @return [Log] the op log for this graph
     attr_reader :log
 
     # Initializes an empty dependency graph
@@ -52,14 +57,19 @@ module Molinillo
       @log = Log.new
     end
 
-    def self.delegate_to_log(method)
-      define_method method do |*args|
-        log.send(method, self, *args)
-      end
+    # Tags the current state of the dependency as the given tag
+    # @param  [Object] tag an opaque tag for the current state of the graph
+    # @return [Void]
+    def tag(tag)
+      log.tag(self, tag)
     end
 
-    delegate_to_log :tag
-    delegate_to_log :rewind_to
+    # Rewinds the graph to the state tagged as `tag`
+    # @param  [Object] tag the tag to rewind to
+    # @return [Void]
+    def rewind_to(tag)
+      log.rewind_to(self, tag)
+    end
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
     # are properly copied.
@@ -88,6 +98,7 @@ module Molinillo
       "#{self.class}:#{vertices.values.inspect}"
     end
 
+    # @return [String] Returns a dot format representation of the graph
     def to_dot
       dot_vertices = []
       dot_edges = []
@@ -171,6 +182,10 @@ module Molinillo
       add_edge_no_circular(origin, destination, requirement)
     end
 
+    # Sets the payload of the vertex with the given name
+    # @param [String] name the name of the vertex
+    # @param [Object] payload the payload
+    # @return [Void]
     def set_payload(name, payload)
       log.set_payload(self, name, payload)
     end
@@ -179,129 +194,10 @@ module Molinillo
 
     # Adds a new {Edge} to the dependency graph without checking for
     # circularity.
+    # @param (see #add_edge)
+    # @return (see #add_edge)
     def add_edge_no_circular(origin, destination, requirement)
       log.add_edge_no_circular(self, origin.name, destination.name, requirement)
     end
-
-    # A vertex in a {DependencyGraph} that encapsulates a {#name} and a
-    # {#payload}
-    class Vertex
-      # @return [String] the name of the vertex
-      attr_accessor :name
-
-      # @return [Object] the payload the vertex holds
-      attr_accessor :payload
-
-      # @return [Arrary<Object>] the explicit requirements that required
-      #   this vertex
-      attr_reader :explicit_requirements
-
-      # @return [Boolean] whether the vertex is considered a root vertex
-      attr_accessor :root
-      alias root? root
-
-      # Initializes a vertex with the given name and payload.
-      # @param [String] name see {#name}
-      # @param [Object] payload see {#payload}
-      def initialize(name, payload)
-        @name = name.frozen? ? name : name.dup.freeze
-        @payload = payload
-        @explicit_requirements = []
-        @outgoing_edges = []
-        @incoming_edges = []
-      end
-
-      # @return [Array<Object>] all of the requirements that required
-      #   this vertex
-      def requirements
-        incoming_edges.map(&:requirement) + explicit_requirements
-      end
-
-      # @return [Array<Edge>] the edges of {#graph} that have `self` as their
-      #   {Edge#origin}
-      attr_accessor :outgoing_edges
-
-      # @return [Array<Edge>] the edges of {#graph} that have `self` as their
-      #   {Edge#destination}
-      attr_accessor :incoming_edges
-
-      # @return [Array<Vertex>] the vertices of {#graph} that have an edge with
-      #   `self` as their {Edge#destination}
-      def predecessors
-        incoming_edges.map(&:origin)
-      end
-
-      # @return [Array<Vertex>] the vertices of {#graph} where `self` is a
-      #   {#descendent?}
-      def recursive_predecessors
-        vertices = predecessors
-        vertices += vertices.map(&:recursive_predecessors).flatten(1)
-        vertices.uniq!
-        vertices
-      end
-
-      # @return [Array<Vertex>] the vertices of {#graph} that have an edge with
-      #   `self` as their {Edge#origin}
-      def successors
-        outgoing_edges.map(&:destination)
-      end
-
-      # @return [Array<Vertex>] the vertices of {#graph} where `self` is an
-      #   {#ancestor?}
-      def recursive_successors
-        vertices = successors
-        vertices += vertices.map(&:recursive_successors).flatten(1)
-        vertices.uniq!
-        vertices
-      end
-
-      # @return [String] a string suitable for debugging
-      def inspect
-        "#{self.class}:#{name}(#{payload.inspect})"
-      end
-
-      # @return [Boolean] whether the two vertices are equal, determined
-      #   by a recursive traversal of each {Vertex#successors}
-      def ==(other)
-        shallow_eql?(other) &&
-          successors.to_set == other.successors.to_set
-      end
-
-      # @param  [Vertex] other the other vertex to compare to
-      # @return [Boolean] whether the two vertices are equal, determined
-      #   solely by {#name} and {#payload} equality
-      def shallow_eql?(other)
-        other &&
-          name == other.name &&
-          payload == other.payload
-      end
-
-      alias eql? ==
-
-      # @return [Fixnum] a hash for the vertex based upon its {#name}
-      def hash
-        name.hash
-      end
-
-      # Is there a path from `self` to `other` following edges in the
-      # dependency graph?
-      # @return true iff there is a path following edges within this {#graph}
-      def path_to?(other)
-        equal?(other) || successors.any? { |v| v.path_to?(other) }
-      end
-
-      alias descendent? path_to?
-
-      # Is there a path from `other` to `self` following edges in the
-      # dependency graph?
-      # @return true iff there is a path following edges within this {#graph}
-      def ancestor?(other)
-        other.path_to?(self)
-      end
-
-      alias is_reachable_from? ancestor?
-    end
   end
 end
-
-require 'molinillo/dependency_graph/log'

@@ -21,6 +21,9 @@ Lint/UnusedMethodArgument:
   Exclude:
     - 'lib/molinillo/modules/**/*'
 
+Style/FrozenStringLiteralComment:
+  EnforcedStyle: always
+
 # CocoaPods default overrides
 
 Metrics/CyclomaticComplexity:
