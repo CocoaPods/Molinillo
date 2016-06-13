@@ -21,9 +21,9 @@ describe Molinillo::DependencyGraph::Log do
 
   it_behaves_like 'replay', []
   it_behaves_like 'replay', [
-    ->(g)  { g.add_child_vertex('Foo', 1, [nil], 4) },
-    ->(g)  { g.add_child_vertex('Bar', 2, ['Foo', nil], 3) },
-    ->(g)  { g.add_child_vertex('Baz', 3, %w(Foo Bar), 2) },
-    ->(g)  { g.add_child_vertex('Foo', 4, [], 1) },
+    proc { |g| g.add_child_vertex('Foo', 1, [nil], 4) },
+    proc { |g| g.add_child_vertex('Bar', 2, ['Foo', nil], 3) },
+    proc { |g| g.add_child_vertex('Baz', 3, %w(Foo Bar), 2) },
+    proc { |g| g.add_child_vertex('Foo', 4, [], 1) },
   ]
 end
