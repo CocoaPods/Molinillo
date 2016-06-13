@@ -4,7 +4,15 @@
 
 ##### Enhancements
 
-* None.  
+* Add an operation log to `DependencyGraph` to eliminate the need for graph
+  copies during dependency resolution, resulting in a 3-100x speedup and
+  reduction in allocations.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#4376](https://github.com/bundler/bundler/issues/4376)
+
+* Remove all metaprogramming to reduce array allocation overhead and improve
+  discoverability.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
