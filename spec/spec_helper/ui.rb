@@ -1,9 +1,14 @@
+# frozen_string_literal: true
 module Molinillo
   class TestUI
     include UI
 
     def output
-      @output ||= File.open('/dev/null', 'w')
+      @output ||= if debug?
+                    $stderr
+                  else
+                    File.open('/dev/null', 'w')
+                  end
     end
   end
 end

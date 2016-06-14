@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module Molinillo
   class TestSpecification
     attr_accessor :name, :version, :dependencies
