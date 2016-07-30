@@ -60,6 +60,13 @@ module Molinillo
         end
       end
 
+      # (see Molinillo::SpecificationProvider#optional_dependency?)
+      def optional_dependency?(dependency)
+        with_no_such_dependency_error_handling do
+          specification_provider.optional_dependency?(dependency)
+        end
+      end
+
       private
 
       # Ensures any raised {NoSuchDependencyError} has its

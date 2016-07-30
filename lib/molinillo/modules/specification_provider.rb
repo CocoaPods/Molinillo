@@ -96,5 +96,18 @@ module Molinillo
     def allow_missing?(dependency)
       false
     end
+
+    # Returns whether this dependency is considered optional.
+    #
+    # If the only dependencies for a specification name are optional, that
+    # specification will not be activated. If there is a strong dependency as
+    # well, than the requirements imposed by optional dependencies will be taken
+    # into account.
+    #
+    # @param [Object] dependency
+    # @return [Boolean] whether this dependency is optional.
+    def optional_dependency?(dependency)
+      false
+    end
   end
 end

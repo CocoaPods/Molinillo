@@ -7,14 +7,19 @@ module Molinillo
     attr_accessor :specs
     include SpecificationProvider
 
-    def initialize(fixture_name)
+    def self.from_fixture(fixture_name)
       File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
-        self.specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
+        sorted_specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
           specs_by_name.tap do |specs|
             specs[name] = versions.map { |s| TestSpecification.new s }.sort_by(&:version)
           end
         end
+        return new(sorted_specs)
       end
+    end
+
+    def initialize(specs_by_name)
+      self.specs = specs_by_name
     end
 
     def requirement_satisfied_by?(requirement, _activated, spec)
@@ -30,7 +35,7 @@ module Molinillo
       @search_for ||= {}
       @search_for[dependency] ||= begin
         pre_release = dependency_pre_release?(dependency)
-        specs[dependency.name].select do |spec|
+        Array(specs[dependency.name]).select do |spec|
           (pre_release ? true : !spec.version.pre_release?) &&
             dependency.satisfied_by?(spec.version)
         end
@@ -55,6 +60,10 @@ module Molinillo
           activated.vertex_named(d.name).payload ? 0 : search_for(d).count,
         ]
       end
+    end
+
+    def optional_dependency?(dependency)
+      dependency.optional?
     end
 
     private
