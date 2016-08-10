@@ -318,29 +318,33 @@ module Molinillo
         end
 
         it 'ignores nested optional dependencies' do
-          expect(@resolver.resolve([weak_dep], DependencyGraph.new).map(&:payload).compact.map(&:to_s)).to eq [
-            'weak_dep (1.0.0)',
-            'no_deps (1.0.0)',
-          ]
+          expect(@resolver.resolve([weak_dep], DependencyGraph.new).map(&:payload).compact.map(&:to_s)).
+            to contain_exactly(
+              'weak_dep (1.0.0)',
+              'no_deps (1.0.0)'
+            )
         end
 
         it 'uses nested optional dependencies' do
           expect(@resolver.resolve([weak_dep, strong_dep], DependencyGraph.new).map(&:payload).compact.map(&:to_s)).
-            to eq [
+            to contain_exactly(
               'weak_dep (1.0.0)',
               'strong_dep (1.0.0)',
-              'no_deps (1.0.0)',
-            ]
+              'no_deps (1.0.0)'
+            )
         end
 
         it 'raises when an optional dependency conflicts' do
           resolve = proc { @resolver.resolve([weak_dep, no_deps], DependencyGraph.new) }
-          expect(&resolve).to raise_error(Molinillo::VersionConflict, <<-EOS.strip)
-Unable to satisfy the following requirements:
-
-- `no_deps (> 1.0.0)` required by `user-specified dependency`
-- `no_deps (< 2.0.0)` required by `weak_dep (1.0.0)`
-          EOS
+          error = proc do |e|
+            expect(e.message.split("\n")).to contain_exactly(
+              'Unable to satisfy the following requirements:',
+              '',
+              '- `no_deps (> 1.0.0)` required by `user-specified dependency`',
+              '- `no_deps (< 2.0.0)` required by `weak_dep (1.0.0)`'
+            )
+          end
+          expect(&resolve).to raise_error(Molinillo::VersionConflict, &error)
         end
       end
 
