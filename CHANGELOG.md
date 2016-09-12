@@ -11,7 +11,7 @@
 * Fixed a bug where `Resolution#parent_of` would return the incorrect parent for
   a dependency, resulting in resolution failing.  
   [Samuel Giddins](https://github.com/segiddins)
-  [bundler#4961](https://github.com/CocoaPods/Molinillo/pull/43)
+  [bundler#4961](https://github.com/bundler/bundler/issues/4961)
 
 
 ## 0.5.0 (2016-06-14)
