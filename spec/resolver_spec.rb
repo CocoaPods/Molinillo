@@ -121,6 +121,81 @@ module Molinillo
         expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
       end
 
+      it 'can resolve when two specs have the same dependencies' do
+        bundler_index = Class.new(TestIndex) do
+          # The bug we want to write a regression test for only occurs when
+          # Molinillo processes dependencies in a specific order for the given
+          # index and demands. This sorting logic ensures we hit the repro case
+          def sort_dependencies(dependencies, activated, conflicts)
+            dependencies.sort_by do |dependency|
+              name = name_for(dependency)
+              [
+                activated.vertex_named(name).payload ? 0 : 1,
+                conflicts[name] ? 0 : 1,
+                activated.vertex_named(name).payload ? 0 : search_for(dependency).count,
+              ]
+            end
+          end
+        end
+
+        index = bundler_index.new('rubygems-2016-09-11')
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('chef', '~> 12.1.2'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'rake (10.5.0)',
+          'builder (3.2.2)',
+          'ffi (1.9.14)',
+          'libyajl2 (1.2.0)',
+          'hashie (2.1.2)',
+          'mixlib-log (1.7.1)',
+          'rack (2.0.1)',
+          'uuidtools (2.1.5)',
+          'diff-lcs (1.2.5)',
+          'erubis (2.7.0)',
+          'highline (1.7.8)',
+          'mixlib-cli (1.7.0)',
+          'mixlib-config (2.2.4)',
+          'mixlib-shellout (2.2.7)',
+          'net-ssh (2.9.4)',
+          'ipaddress (0.8.3)',
+          'mime-types (2.99.3)',
+          'systemu (2.6.5)',
+          'wmi-lite (1.0.0)',
+          'plist (3.1.0)',
+          'coderay (1.1.1)',
+          'method_source (0.8.2)',
+          'slop (3.6.0)',
+          'rspec-support (3.5.0)',
+          'multi_json (1.12.1)',
+          'net-telnet (0.1.1)',
+          'sfl (2.2.0)',
+          'ffi-yajl (1.4.0)',
+          'mixlib-authentication (1.4.1)',
+          'net-ssh-gateway (1.2.0)',
+          'net-scp (1.2.1)',
+          'pry (0.10.4)',
+          'rspec-core (3.5.3)',
+          'rspec-expectations (3.5.0)',
+          'rspec-mocks (3.5.0)',
+          'chef-zero (4.2.3)',
+          'ohai (8.4.0)',
+          'net-ssh-multi (1.2.1)',
+          'specinfra (2.61.3)',
+          'rspec_junit_formatter (0.2.3)',
+          'rspec-its (1.2.0)',
+          'rspec (3.5.0)',
+          'serverspec (2.36.1)',
+          'chef (12.1.2)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
+
       # Regression test. See: https://github.com/CocoaPods/Molinillo/pull/38
       it 'can resolve when swapping children with successors' do
         swap_child_with_successors_index = Class.new(TestIndex) do
