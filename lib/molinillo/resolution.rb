@@ -357,9 +357,12 @@ module Molinillo
       def fixup_swapped_children(vertex)
         payload = vertex.payload
         dep_names = dependencies_for(payload).map(&method(:name_for))
-        vertex.successors.each do |succ|
+        vertex.outgoing_edges.each do |outgoing_edge|
+          @parent_of[outgoing_edge.requirement] = states.size - 1
+          succ = outgoing_edge.destination
           if !dep_names.include?(succ.name) && !succ.root? && succ.predecessors.to_a == [vertex]
             debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
+            succ.requirements.each { |r| @parent_of.delete(r) }
             activated.detach_vertex_named(succ.name)
 
             all_successor_names = succ.recursive_successors.map(&:name)

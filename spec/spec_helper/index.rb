@@ -61,4 +61,20 @@ module Molinillo
       end
     end
   end
+
+  class BundlerIndex < TestIndex
+    # Some bugs we want to write a regression test for only occurs when
+    # Molinillo processes dependencies in a specific order for the given
+    # index and demands. This sorting logic ensures we hit the repro case
+    def sort_dependencies(dependencies, activated, conflicts)
+      dependencies.sort_by do |dependency|
+        name = name_for(dependency)
+        [
+          activated.vertex_named(name).payload ? 0 : 1,
+          conflicts[name] ? 0 : 1,
+          activated.vertex_named(name).payload ? 0 : search_for(dependency).count,
+        ]
+      end
+    end
+  end
 end
