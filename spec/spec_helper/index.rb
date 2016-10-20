@@ -32,6 +32,7 @@ module Molinillo
             dependency.satisfied_by?(spec.version)
         end
       end
+      @search_for[dependency].dup
     end
 
     def name_for(dependency)

@@ -12,6 +12,7 @@ module Molinillo
     # order, so the latest version ought to be last.
     # @note This method should be 'pure', i.e. the return value should depend
     #   only on the `dependency` parameter.
+    # @note This method _must_ return a new array object each time it is called.
     #
     # @param [Object] dependency
     # @return [Array<Object>] the specifications that satisfy the given
