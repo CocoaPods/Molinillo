@@ -286,6 +286,29 @@ module Molinillo
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
       end
+
+      it 'removes dependency with the same name but different constraint when swapping children' do
+        @resolver = described_class.new(TestIndex.new('dependencies_with_same_name'), TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
+          VersionKit::Dependency.new('nginx', '>= 0.0.0'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'build-essential (2.4.0)',
+          '7-zip (1.0.0)',
+          'windows (1.39.2)',
+          'chef-handler (1.3.0)',
+          'nginx (2.7.6)',
+          'some_package (0.1.0)',
+          'yum-epel (0.6.6)',
+          'yum (3.10.0)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
     end
   end
 end
