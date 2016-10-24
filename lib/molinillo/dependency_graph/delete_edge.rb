@@ -7,8 +7,8 @@ module Molinillo
     class DeleteEdge < Action
       # @!group Action
 
-      # (see Action.name)
-      def self.name
+      # (see Action.action_name)
+      def self.action_name
         :delete_edge
       end
 
