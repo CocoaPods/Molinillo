@@ -242,6 +242,46 @@ module Molinillo
         expect(resolved.map(&:payload).map(&:to_s).sort).to eq(expected.sort)
       end
 
+      it 'can resolve when swapping changes transitive dependencies' do
+        index = TestIndex.new("restkit")
+        def index.sort_dependencies(dependencies, activated, conflicts)
+          dependencies.sort_by do |d|
+            [
+              activated.vertex_named(d.name).payload ? 0 : 1,
+              dependency_pre_release?(d) ? 0 : 1,
+              conflicts[d.name] ? 0 : 1,
+              search_for(d).count,
+            ]
+          end
+        end
+        def index.requirement_satisfied_by?(requirement, activated, spec)
+          existing_vertices = activated.vertices.values.select do |v|
+            v.name.split('/').first == requirement.name.split('/').first
+          end
+          existing = existing_vertices.map(&:payload).compact.first
+          if existing
+            existing.version == spec.version && requirement.satisfied_by?(spec.version)
+          else
+            requirement.satisfied_by? spec.version
+          end
+        end
+
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('RestKit', '~> 0.23.0'),
+          VersionKit::Dependency.new('RestKit', '<= 0.23.2'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          "RestKit (0.23.2)",
+          "RestKit/Core (0.23.2)",
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
+
       # Regression test. See: https://github.com/CocoaPods/Molinillo/pull/38
       it 'can resolve when swapping children with successors' do
         swap_child_with_successors_index = Class.new(TestIndex) do
