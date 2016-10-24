@@ -8,7 +8,11 @@
 
 ##### Bug Fixes
 
-* None.  
+* Fixed a regression in v0.5.2 that could cause resolution to fail after
+  swapping, because stale dependencies would still be in the requirements
+  list.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [#48](https://github.com/CocoaPods/Molinillo/issues/48)
 
 
 ## 0.5.2 (2016-10-24)

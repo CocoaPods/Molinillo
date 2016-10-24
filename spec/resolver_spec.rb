@@ -243,7 +243,7 @@ module Molinillo
       end
 
       it 'can resolve when swapping changes transitive dependencies' do
-        index = TestIndex.new("restkit")
+        index = TestIndex.new('restkit')
         def index.sort_dependencies(dependencies, activated, conflicts)
           dependencies.sort_by do |d|
             [
@@ -254,6 +254,7 @@ module Molinillo
             ]
           end
         end
+
         def index.requirement_satisfied_by?(requirement, activated, spec)
           existing_vertices = activated.vertices.values.select do |v|
             v.name.split('/').first == requirement.name.split('/').first
@@ -275,8 +276,8 @@ module Molinillo
         resolved = @resolver.resolve(demands, DependencyGraph.new)
 
         expected = [
-          "RestKit (0.23.2)",
-          "RestKit/Core (0.23.2)",
+          'RestKit (0.23.2)',
+          'RestKit/Core (0.23.2)',
         ]
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
