@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Fixed a bug where `Resolution#parent_of` would return the incorrect parent for
+  a dependency after swapping had occurred, resulting in resolution failing.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#5059](https://github.com/bundler/bundler/issues/5059)
 
 
 ## 0.5.1 (2016-09-12)

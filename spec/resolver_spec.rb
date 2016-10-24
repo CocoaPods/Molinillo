@@ -122,28 +122,13 @@ module Molinillo
       end
 
       it 'can resolve when two specs have the same dependencies' do
-        bundler_index = Class.new(TestIndex) do
-          # The bug we want to write a regression test for only occurs when
-          # Molinillo processes dependencies in a specific order for the given
-          # index and demands. This sorting logic ensures we hit the repro case
-          def sort_dependencies(dependencies, activated, conflicts)
-            dependencies.sort_by do |dependency|
-              name = name_for(dependency)
-              [
-                activated.vertex_named(name).payload ? 0 : 1,
-                conflicts[name] ? 0 : 1,
-                activated.vertex_named(name).payload ? 0 : search_for(dependency).count,
-              ]
-            end
-          end
-        end
-
-        index = bundler_index.new('rubygems-2016-09-11')
+        index = BundlerIndex.new('rubygems-2016-09-11')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('chef', '~> 12.1.2'),
         ]
 
+        demands.each { |d| index.search_for(d) }
         resolved = @resolver.resolve(demands, DependencyGraph.new)
 
         expected = [
@@ -194,6 +179,67 @@ module Molinillo
         ]
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
+
+      it 'can resolve when two specs have the same dependencies and swapping happens' do
+        index = BundlerIndex.new('rubygems-2016-10-06')
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('avro_turf', '0.6.2'),
+          VersionKit::Dependency.new('fog', '1.38.0'),
+        ]
+        demands.each { |d| index.search_for(d) }
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'pkg-config (1.1.7)',
+          'CFPropertyList (2.3.3)',
+          'multi_json (1.12.1)',
+          'excon (0.45.4)',
+          'builder (3.2.2)',
+          'formatador (0.2.5)',
+          'ipaddress (0.8.3)',
+          'xml-simple (1.1.5)',
+          'mini_portile2 (2.1.0)',
+          'inflecto (0.0.2)',
+          'trollop (2.1.2)',
+          'fission (0.5.0)',
+          'avro (1.8.1)',
+          'fog-core (1.37.0)',
+          'nokogiri (1.6.8)',
+          'avro_turf (0.6.2)',
+          'fog-json (1.0.2)',
+          'fog-local (0.3.0)',
+          'fog-vmfusion (0.1.0)',
+          'fog-xml (0.1.2)',
+          'rbvmomi (1.8.2)',
+          'fog-aliyun (0.1.0)',
+          'fog-brightbox (0.11.0)',
+          'fog-sakuracloud (1.7.5)',
+          'fog-serverlove (0.1.2)',
+          'fog-softlayer (1.1.4)',
+          'fog-storm_on_demand (0.1.1)',
+          'fog-atmos (0.1.0)',
+          'fog-aws (0.9.2)',
+          'fog-cloudatcost (0.1.2)',
+          'fog-dynect (0.0.3)',
+          'fog-ecloud (0.3.0)',
+          'fog-google (0.1.0)',
+          'fog-openstack (0.1.3)',
+          'fog-powerdns (0.1.1)',
+          'fog-profitbricks (0.0.5)',
+          'fog-rackspace (0.1.1)',
+          'fog-radosgw (0.0.5)',
+          'fog-riakcs (0.1.0)',
+          'fog-terremark (0.1.0)',
+          'fog-voxel (0.1.0)',
+          'fog-xenserver (0.2.3)',
+          'fog-vsphere (1.2.0)',
+          'fog (1.38.0)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s).sort).to eq(expected.sort)
       end
 
       # Regression test. See: https://github.com/CocoaPods/Molinillo/pull/38
