@@ -288,7 +288,7 @@ module Molinillo
       end
 
       it 'removes dependency with the same name but different constraint when swapping children' do
-        @resolver = described_class.new(TestIndex.new('dependencies_with_same_name'), TestUI.new)
+        @resolver = described_class.new(BundlerIndex.new('dependencies_with_same_name'), TestUI.new)
         demands = [
           VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
           VersionKit::Dependency.new('nginx', '>= 0.0.0'),
