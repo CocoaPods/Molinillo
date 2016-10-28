@@ -373,9 +373,9 @@ module Molinillo
               (requirement_name == succ.name) || all_successor_names.include?(requirement_name)
             end
           elsif !matching_deps.include?(outgoing_edge.requirement)
-            outgoing_edge.requirement = matching_deps.first
+            activated.delete_edge(outgoing_edge)
+            requirements.delete(outgoing_edge.requirement)
           end
-          matching_deps.delete(outgoing_edge.requirement)
         end
       end
 

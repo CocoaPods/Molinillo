@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'molinillo/dependency_graph/add_edge_no_circular'
 require 'molinillo/dependency_graph/add_vertex'
+require 'molinillo/dependency_graph/delete_edge'
 require 'molinillo/dependency_graph/detach_vertex_named'
 require 'molinillo/dependency_graph/set_payload'
 require 'molinillo/dependency_graph/tag'
@@ -38,6 +39,16 @@ module Molinillo
       # @macro action
       def add_edge_no_circular(graph, origin, destination, requirement)
         push_action(graph, AddEdgeNoCircular.new(origin, destination, requirement))
+      end
+
+      # {include:DependencyGraph#delete_edge}
+      # @param [Graph] graph the graph to perform the action on
+      # @param [String] origin_name
+      # @param [String] destination_name
+      # @param [Object] requirement
+      # @return (see DependencyGraph#delete_edge)
+      def delete_edge(graph, origin_name, destination_name, requirement)
+        push_action(graph, DeleteEdge.new(origin_name, destination_name, requirement))
       end
 
       # @macro action
