@@ -103,7 +103,7 @@ module Molinillo
         loop do
           action = pop!(graph)
           raise "No tag #{tag.inspect} found" unless action
-          break if action.class.name == :tag && action.tag == tag
+          break if action.class.action_name == :tag && action.tag == tag
         end
       end
 
