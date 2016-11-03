@@ -11,6 +11,26 @@
 * None.  
 
 
+## 0.5.3 (2016-10-28)
+
+##### Enhancements
+
+* None.  
+
+##### Bug Fixes
+
+* Fixed a regression in v0.5.2 that could cause resolution to fail after
+  swapping, because stale dependencies would still be in the requirements
+  list.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [#48](https://github.com/CocoaPods/Molinillo/issues/48)
+
+* Rename `Action.name` to `Action.action_name` to avoid overriding
+  `Module.name`.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [#50](https://github.com/CocoaPods/Molinillo/issues/50)
+
+
 ## 0.5.2 (2016-10-24)
 
 ##### Enhancements
