@@ -242,6 +242,19 @@ module Molinillo
         expect(resolved.map(&:payload).map(&:to_s).sort).to eq(expected.sort)
       end
 
+      it 'can unwind when the conflict has a common parent' do
+        index = BundlerIndex.new('rubygems-2016-11-05')
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('github-pages', '>= 0'),
+        ]
+        demands.each { |d| index.search_for(d) }
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s).sort).to include('github-pages (104.0.0)')
+      end
+
       it 'can resolve when swapping changes transitive dependencies' do
         index = TestIndex.new('restkit')
         def index.sort_dependencies(dependencies, activated, conflicts)
