@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Fix unwinding when both sides of a conflict have a common parent
+  requirement.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#5154](https://github.com/bundler/bundler/issues/5154)
 
 
 ## 0.5.3 (2016-10-28)
