@@ -109,5 +109,5 @@ describe "fuzzing" do
     7898789,
     0.35096144504316984,
     3.14159,
-  ].concat(10000.times.map { Random.rand })
+  ].concat(ENV.fetch('MOLINILLO_FUZZER', '0').to_i.times.map { Random.rand })
 end
