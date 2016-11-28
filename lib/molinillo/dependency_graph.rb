@@ -119,6 +119,7 @@ module Molinillo
     #   {Vertex#successors}
     def ==(other)
       return false unless other
+      return true if equal?(other)
       vertices.each do |name, vertex|
         other_vertex = other.vertex_named(name)
         return false unless other_vertex
