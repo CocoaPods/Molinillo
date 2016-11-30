@@ -75,4 +75,4 @@ describe 'fuzzing' do
     0.35096144504316984,
     3.14159,
   ].concat(Array.new(ENV.fetch('MOLINILLO_FUZZER', '0').to_i) { Random.rand })
-end
+end if RUBY_VERSION >= '1.9'
