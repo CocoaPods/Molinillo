@@ -1,18 +1,10 @@
 # frozen_string_literal: true
 require File.expand_path('../spec_helper', __FILE__)
-require 'json'
-require 'pathname'
 
 module Molinillo
-  FIXTURE_DIR = Pathname.new('spec/resolver_integration_specs')
-  FIXTURE_INDEX_DIR = FIXTURE_DIR + 'index'
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'
 
   class TestCase
-    require File.expand_path('../spec_helper/index', __FILE__)
-    require File.expand_path('../spec_helper/specification', __FILE__)
-    require File.expand_path('../spec_helper/ui', __FILE__)
-
     attr_accessor :name, :requested, :base, :conflicts, :resolver, :result, :index
 
     def initialize(fixture_path)

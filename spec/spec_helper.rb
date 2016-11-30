@@ -24,12 +24,17 @@ end
 #-----------------------------------------------------------------------------#
 
 require 'pathname'
+require 'json'
 ROOT = Pathname.new(File.expand_path('../../', __FILE__))
 $LOAD_PATH.unshift((ROOT + 'lib').to_s)
 $LOAD_PATH.unshift((ROOT + 'spec').to_s)
 
 require 'version_kit'
 require 'molinillo'
+
+require 'spec_helper/index'
+require 'spec_helper/specification'
+require 'spec_helper/ui'
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
