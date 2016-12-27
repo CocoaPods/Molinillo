@@ -4,10 +4,10 @@ module Molinillo
     attr_accessor :name, :version, :dependencies
     def initialize(hash)
       self.name = hash['name']
-      self.version = VersionKit::Version.new(hash['version'])
+      self.version = Gem::Version.new(hash['version'])
       self.dependencies = hash.fetch('dependencies') { Hash.new }.map do |(name, requirement)|
         requirements = requirement.split(',').map(&:chomp)
-        VersionKit::Dependency.new(name, requirements)
+        Gem::Dependency.new(name, requirements)
       end
     end
 

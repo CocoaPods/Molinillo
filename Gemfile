@@ -5,7 +5,6 @@ gemspec
 group :development do
   gem 'rspec'
   gem 'kicker'
-  gem 'version_kit', :git => 'https://github.com/CocoaPods/VersionKit.git', :branch => 'master'
 
   # Ruby 1.8.7 fixes
   gem 'mime-types', '< 2.0'

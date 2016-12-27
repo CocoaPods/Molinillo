@@ -13,11 +13,11 @@ module Molinillo
           self.name = test_case['name']
           self.index = TestIndex.from_fixture(test_case['index'] || 'awesome')
           self.requested = test_case['requested'].map do |(name, reqs)|
-            VersionKit::Dependency.new name, reqs.split(',').map(&:chomp)
+            Gem::Dependency.new name, reqs.split(',').map(&:chomp)
           end
           add_dependencies_to_graph = lambda do |graph, parent, hash|
             name = hash['name']
-            version = VersionKit::Version.new(hash['version'])
+            version = Gem::Version.new(hash['version'])
             dependency = index.specs[name].find { |s| s.version == version }
             node = if parent
                      graph.add_vertex(name, dependency).tap do |v|
@@ -91,18 +91,18 @@ module Molinillo
 
       it 'includes the source of a user-specified unsatisfied dependency' do
         expect do
-          @resolver.resolve([VersionKit::Dependency.new('missing', '3.0')], DependencyGraph.new)
+          @resolver.resolve([Gem::Dependency.new('missing', '3.0')], DependencyGraph.new)
         end.to raise_error(VersionConflict, /required by `user-specified dependency`/)
       end
 
       it 'can handle when allow_missing? returns true for the only requirement' do
-        dep = VersionKit::Dependency.new('missing', '3.0')
+        dep = Gem::Dependency.new('missing', '3.0')
         allow(@resolver.specification_provider).to receive(:allow_missing?).with(dep).and_return(true)
         expect(@resolver.resolve([dep], DependencyGraph.new).to_a).to be_empty
       end
 
       it 'can handle when allow_missing? returns true for a nested requirement' do
-        dep = VersionKit::Dependency.new('actionpack', '1.2.3')
+        dep = Gem::Dependency.new('actionpack', '1.2.3')
         allow(@resolver.specification_provider).to receive(:allow_missing?).
           with(have_attributes(:name => 'activesupport')).and_return(true)
         allow(@resolver.specification_provider).to receive(:search_for).
@@ -117,7 +117,7 @@ module Molinillo
         index = BundlerIndex.from_fixture('rubygems-2016-09-11')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('chef', '~> 12.1.2'),
+          Gem::Dependency.new('chef', '~> 12.1.2'),
         ]
 
         demands.each { |d| index.search_for(d) }
@@ -150,7 +150,7 @@ module Molinillo
           'rspec-support (3.5.0)',
           'multi_json (1.12.1)',
           'net-telnet (0.1.1)',
-          'sfl (2.2.0)',
+          'sfl (2.2)',
           'ffi-yajl (1.4.0)',
           'mixlib-authentication (1.4.1)',
           'net-ssh-gateway (1.2.0)',
@@ -177,8 +177,8 @@ module Molinillo
         index = BundlerIndex.from_fixture('rubygems-2016-10-06')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('avro_turf', '0.6.2'),
-          VersionKit::Dependency.new('fog', '1.38.0'),
+          Gem::Dependency.new('avro_turf', '0.6.2'),
+          Gem::Dependency.new('fog', '1.38.0'),
         ]
         demands.each { |d| index.search_for(d) }
 
@@ -238,13 +238,13 @@ module Molinillo
         index = BundlerIndex.from_fixture('rubygems-2016-11-05')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('github-pages', '>= 0'),
+          Gem::Dependency.new('github-pages', '>= 0'),
         ]
         demands.each { |d| index.search_for(d) }
 
         resolved = @resolver.resolve(demands, DependencyGraph.new)
 
-        expect(resolved.map(&:payload).map(&:to_s).sort).to include('github-pages (104.0.0)')
+        expect(resolved.map(&:payload).map(&:to_s).sort).to include('github-pages (104)')
       end
 
       it 'can resolve when swapping changes transitive dependencies' do
@@ -253,7 +253,7 @@ module Molinillo
           dependencies.sort_by do |d|
             [
               activated.vertex_named(d.name).payload ? 0 : 1,
-              dependency_pre_release?(d) ? 0 : 1,
+              dependency_prerelease?(d) ? 0 : 1,
               conflicts[d.name] ? 0 : 1,
               search_for(d).count,
             ]
@@ -266,16 +266,16 @@ module Molinillo
           end
           existing = existing_vertices.map(&:payload).compact.first
           if existing
-            existing.version == spec.version && requirement.satisfied_by?(spec.version)
+            existing.version == spec.version && requirement.requirement.satisfied_by?(spec.version)
           else
-            requirement.satisfied_by? spec.version
+            requirement.requirement.satisfied_by? spec.version
           end
         end
 
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('RestKit', '~> 0.23.0'),
-          VersionKit::Dependency.new('RestKit', '<= 0.23.2'),
+          Gem::Dependency.new('RestKit', '~> 0.23.0'),
+          Gem::Dependency.new('RestKit', '<= 0.23.2'),
         ]
 
         resolved = @resolver.resolve(demands, DependencyGraph.new)
@@ -314,8 +314,8 @@ module Molinillo
         index = swap_child_with_successors_index.from_fixture('swap_child_with_successors')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
-          VersionKit::Dependency.new('nginx', '>= 0.0.0'),
+          Gem::Dependency.new('build-essential', '>= 0.0.0'),
+          Gem::Dependency.new('nginx', '>= 0.0.0'),
         ]
 
         resolved = @resolver.resolve(demands, DependencyGraph.new)
@@ -362,9 +362,9 @@ module Molinillo
         end
         @resolver = described_class.new(index, TestUI.new)
         demands = [
-          VersionKit::Dependency.new('c', '= 1.0.0'),
-          VersionKit::Dependency.new('c', '>= 1.0.0'),
-          VersionKit::Dependency.new('z', '>= 1.0.0'),
+          Gem::Dependency.new('c', '= 1.0.0'),
+          Gem::Dependency.new('c', '>= 1.0.0'),
+          Gem::Dependency.new('z', '>= 1.0.0'),
         ]
 
         resolved = @resolver.resolve(demands, DependencyGraph.new)

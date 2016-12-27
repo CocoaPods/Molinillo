@@ -15,9 +15,9 @@ module Molinillo
       loop do
         vertex = activated.find { |a| !a.requirements.empty? && a.payload.nil? }
         break unless vertex
-        possibilities = possibilities_by_level[level] ||= index.search_for(VersionKit::Dependency.new(vertex.name, '>= 0.0.0-a'))
+        possibilities = possibilities_by_level[level] ||= index.search_for(Gem::Dependency.new(vertex.name, '>= 0.0.0-a'))
         possibilities.select! do |spec|
-          vertex.requirements.all? { |r| r.satisfied_by?(spec.version) && (!spec.version.pre_release? || index.send(:dependency_pre_release?, r)) } &&
+          vertex.requirements.all? { |r| r.requirement.satisfied_by?(spec.version) && (!spec.version.prerelease? || index.send(:dependency_prerelease?, r)) } &&
             spec.dependencies.all? { |d| v = activated.vertex_named(d.name); !v || !v.payload || d.satisfied_by?(v.payload.version) }
         end
         warn "level = #{level} possibilities = #{possibilities.map(&:to_s)} requirements = #{vertex.requirements.map(&:to_s)}"
