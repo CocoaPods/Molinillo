@@ -154,7 +154,7 @@ module Molinillo
     # Detaches the {#vertex_named} `name` {Vertex} from the graph, recursively
     # removing any non-root vertices that were orphaned in the process
     # @param [String] name
-    # @return [void]
+    # @return [Array<Vertex>] the vertices which have been detached
     def detach_vertex_named(name)
       log.detach_vertex_named(self, name)
     end
