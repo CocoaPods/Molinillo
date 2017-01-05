@@ -5,8 +5,9 @@ module Molinillo
     def initialize(hash)
       self.name = hash['name']
       self.version = VersionKit::Version.new(hash['version'])
-      self.dependencies = hash['dependencies'].map do |(name, requirement)|
-        VersionKit::Dependency.new(name, requirement.split(',').map(&:chomp))
+      self.dependencies = hash.fetch('dependencies') { Hash.new }.map do |(name, requirement)|
+        requirements = requirement.split(',').map(&:chomp)
+        VersionKit::Dependency.new(name, requirements)
       end
     end
 

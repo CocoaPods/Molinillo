@@ -57,7 +57,7 @@ module Molinillo
         @graph.detach_vertex_named(root.name)
         expect(@graph.vertex_named(root.name)).to be_nil
         expect(@graph.vertex_named(child.name)).to eq(child)
-        expect(child.predecessors).to eq([root2])
+        expect(child.predecessors).to contain_exactly(root2)
         expect(@graph.vertices.count).to eq(2)
       end
 
