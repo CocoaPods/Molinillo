@@ -163,6 +163,7 @@ module Molinillo
         end
 
         requirements = sort_dependencies(original_requested, graph, {})
+        requirements.reject! { |r| optional_dependency?(r) }
         initial_requirement = requirements.shift
         DependencyState.new(
           initial_requirement && name_for(initial_requirement),
@@ -396,13 +397,26 @@ module Molinillo
       # @return [Boolean] whether the current spec is satisfied as a new
       # possibility.
       def new_spec_satisfied?
+        unless requirement_satisfied_by?(requirement, activated, possibility)
+          debug(depth) { 'Requirement unsatisfied by requested spec' }
+          return false
+        end
+
+        vertex = activated.vertex_named(name)
+        vertex.requirements.each do |d|
+          next unless optional_dependency?(d) # TODO: investigate getting rid of this
+          next if requirement_satisfied_by?(d, activated, possibility)
+          debug(depth) { "Vertex requirement #{d} unsatisfied by the possibility" }
+          return false
+        end
+
         locked_requirement = locked_requirement_named(name)
-        requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
-        locked_spec_satisfied = !locked_requirement ||
-          requirement_satisfied_by?(locked_requirement, activated, possibility)
-        debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
-        debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
-        requested_spec_satisfied && locked_spec_satisfied
+        if locked_requirement && !requirement_satisfied_by?(locked_requirement, activated, possibility)
+          debug(depth) { "Possibility unsatisfied by locked spec #{locked_requirement}" }
+          return false
+        end
+
+        true
       end
 
       # @param [String] requirement_name the spec name to search for
@@ -430,10 +444,18 @@ module Molinillo
       def require_nested_dependencies_for(activated_spec)
         nested_dependencies = dependencies_for(activated_spec)
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
-        nested_dependencies.each do |d|
-          activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d)
+
+        nested_dependencies = nested_dependencies.reject do |d|
+          name = name_for(d)
+          activated.add_child_vertex(name, nil, [name_for(activated_spec)], d)
+
           parent_index = states.size - 1
           @parent_of[d] ||= parent_index
+
+          next false unless optional_dependency?(d)
+          next true unless existing = activated.vertex_named(name).payload
+          next true if requirement_satisfied_by?(d, activated, existing)
+          false
         end
 
         push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)

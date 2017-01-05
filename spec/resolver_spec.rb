@@ -11,7 +11,7 @@ module Molinillo
       File.open(fixture_path) do |fixture|
         JSON.load(fixture).tap do |test_case|
           self.name = test_case['name']
-          self.index = TestIndex.new(test_case['index'] || 'awesome')
+          self.index = TestIndex.from_fixture(test_case['index'] || 'awesome')
           self.requested = test_case['requested'].map do |(name, reqs)|
             VersionKit::Dependency.new name, reqs.split(',').map(&:chomp)
           end
@@ -81,8 +81,9 @@ module Molinillo
     end
 
     describe 'in general' do
+      let(:index) { TestIndex.from_fixture('awesome') }
       before do
-        @resolver = described_class.new(TestIndex.new('awesome'), TestUI.new)
+        @resolver = described_class.new(index, TestUI.new)
       end
 
       it 'can resolve a list of 0 requirements' do
@@ -114,7 +115,7 @@ module Molinillo
       end
 
       it 'can resolve when two specs have the same dependencies' do
-        index = BundlerIndex.new('rubygems-2016-09-11')
+        index = BundlerIndex.from_fixture('rubygems-2016-09-11')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('chef', '~> 12.1.2'),
@@ -174,7 +175,7 @@ module Molinillo
       end
 
       it 'can resolve when two specs have the same dependencies and swapping happens' do
-        index = BundlerIndex.new('rubygems-2016-10-06')
+        index = BundlerIndex.from_fixture('rubygems-2016-10-06')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('avro_turf', '0.6.2'),
@@ -235,7 +236,7 @@ module Molinillo
       end
 
       it 'can unwind when the conflict has a common parent' do
-        index = BundlerIndex.new('rubygems-2016-11-05')
+        index = BundlerIndex.from_fixture('rubygems-2016-11-05')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('github-pages', '>= 0'),
@@ -248,7 +249,7 @@ module Molinillo
       end
 
       it 'can resolve when swapping changes transitive dependencies' do
-        index = TestIndex.new('restkit')
+        index = TestIndex.from_fixture('restkit')
         def index.sort_dependencies(dependencies, activated, conflicts)
           dependencies.sort_by do |d|
             [
@@ -288,6 +289,65 @@ module Molinillo
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
       end
 
+      describe 'optional dependencies' do
+        let(:index) do
+          TestIndex.new(
+            'no_deps' => [
+              TestSpecification.new('name' => 'no_deps', 'version' => '1.0'),
+              TestSpecification.new('name' => 'no_deps', 'version' => '2.0'),
+              TestSpecification.new('name' => 'no_deps', 'version' => '3.0'),
+            ],
+            'strong_dep' => [
+              TestSpecification.new('name' => 'strong_dep', 'version' => '1.0',
+                                    'dependencies' => { 'no_deps' => '< 3' }),
+            ],
+            'weak_dep' => [
+              TestSpecification.new('name' => 'weak_dep', 'version' => '1.0',
+                                    'dependencies' => { 'no_deps' => '< 2 optional' }),
+            ]
+          )
+        end
+
+        let(:no_deps) { VersionKit::Dependency.new('no_deps', '> 1') }
+        let(:weak_dep) { VersionKit::Dependency.new('weak_dep', '>= 0') }
+        let(:strong_dep) { VersionKit::Dependency.new('strong_dep', '>= 0') }
+
+        it 'ignores optional explicit dependencies' do
+          no_deps.optional = true
+          expect(@resolver.resolve([no_deps], DependencyGraph.new).map(&:payload).compact).to be_empty
+        end
+
+        it 'ignores nested optional dependencies' do
+          expect(@resolver.resolve([weak_dep], DependencyGraph.new).map(&:payload).compact.map(&:to_s)).
+            to contain_exactly(
+              'weak_dep (1.0.0)',
+              'no_deps (1.0.0)'
+            )
+        end
+
+        it 'uses nested optional dependencies' do
+          expect(@resolver.resolve([weak_dep, strong_dep], DependencyGraph.new).map(&:payload).compact.map(&:to_s)).
+            to contain_exactly(
+              'weak_dep (1.0.0)',
+              'strong_dep (1.0.0)',
+              'no_deps (1.0.0)'
+            )
+        end
+
+        it 'raises when an optional dependency conflicts' do
+          resolve = proc { @resolver.resolve([weak_dep, no_deps], DependencyGraph.new) }
+          error = proc do |e|
+            expect(e.message.split("\n")).to contain_exactly(
+              'Unable to satisfy the following requirements:',
+              '',
+              '- `no_deps (> 1.0.0)` required by `user-specified dependency`',
+              '- `no_deps (< 2.0.0)` required by `weak_dep (1.0.0)`'
+            )
+          end
+          expect(&resolve).to raise_error(Molinillo::VersionConflict, &error)
+        end
+      end
+
       # Regression test. See: https://github.com/CocoaPods/Molinillo/pull/38
       it 'can resolve when swapping children with successors' do
         swap_child_with_successors_index = Class.new(TestIndex) do
@@ -311,7 +371,7 @@ module Molinillo
           end
         end
 
-        index = swap_child_with_successors_index.new('swap_child_with_successors')
+        index = swap_child_with_successors_index.from_fixture('swap_child_with_successors')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
