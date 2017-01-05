@@ -332,6 +332,50 @@ module Molinillo
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
       end
+
+      it 'can resolve ur face' do
+        index = TestIndex.new(
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'z' => '= 2.0.0' }),
+            TestSpecification.new('name' => 'a', 'version' => '2.0.0', 'dependencies' => { 'z' => '= 1.0.0' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1.0.0', 'dependencies' => { 'a' => '< 2' }),
+            TestSpecification.new('name' => 'b', 'version' => '2.0.0', 'dependencies' => { 'a' => '< 2' }),
+          ],
+          'c' => [
+            TestSpecification.new('name' => 'c', 'version' => '1.0.0'),
+            TestSpecification.new('name' => 'c', 'version' => '2.0.0', 'dependencies' => { 'b' => '< 2' }),
+          ],
+          'z' => [
+            TestSpecification.new('name' => 'z', 'version' => '1.0.0'),
+            TestSpecification.new('name' => 'z', 'version' => '2.0.0'),
+          ]
+        )
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          index = ['c (>= 1.0.0)', 'b (< 2.0.0)', 'a (< 2.0.0)', 'c (= 1.0.0)']
+          dependencies.sort_by do |dep|
+            [
+              index.index(dep.to_s) || 999,
+            ]
+          end
+        end
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('c', '= 1.0.0'),
+          VersionKit::Dependency.new('c', '>= 1.0.0'),
+          VersionKit::Dependency.new('z', '>= 1.0.0'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'c (1.0.0)',
+          'z (2.0.0)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
     end
   end
 end
