@@ -13,7 +13,7 @@ describe 'fuzzing' do
       )
     end
   end
-  let(:index) { Molinillo::TestIndex.new('fuzz') }
+  let(:index) { Molinillo::TestIndex.from_fixture('fuzz') }
   let(:ui) { Molinillo::TestUI.new }
   let(:resolver) { Molinillo::Resolver.new(index, ui) }
 

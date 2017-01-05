@@ -11,7 +11,7 @@ module Molinillo
       File.open(fixture_path) do |fixture|
         JSON.load(fixture).tap do |test_case|
           self.name = test_case['name']
-          self.index = TestIndex.new(test_case['index'] || 'awesome')
+          self.index = TestIndex.from_fixture(test_case['index'] || 'awesome')
           self.requested = test_case['requested'].map do |(name, reqs)|
             VersionKit::Dependency.new name, reqs.split(',').map(&:chomp)
           end
@@ -82,7 +82,7 @@ module Molinillo
 
     describe 'in general' do
       before do
-        @resolver = described_class.new(TestIndex.new('awesome'), TestUI.new)
+        @resolver = described_class.new(TestIndex.from_fixture('awesome'), TestUI.new)
       end
 
       it 'can resolve a list of 0 requirements' do
@@ -114,7 +114,7 @@ module Molinillo
       end
 
       it 'can resolve when two specs have the same dependencies' do
-        index = BundlerIndex.new('rubygems-2016-09-11')
+        index = BundlerIndex.from_fixture('rubygems-2016-09-11')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('chef', '~> 12.1.2'),
@@ -174,7 +174,7 @@ module Molinillo
       end
 
       it 'can resolve when two specs have the same dependencies and swapping happens' do
-        index = BundlerIndex.new('rubygems-2016-10-06')
+        index = BundlerIndex.from_fixture('rubygems-2016-10-06')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('avro_turf', '0.6.2'),
@@ -235,7 +235,7 @@ module Molinillo
       end
 
       it 'can unwind when the conflict has a common parent' do
-        index = BundlerIndex.new('rubygems-2016-11-05')
+        index = BundlerIndex.from_fixture('rubygems-2016-11-05')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('github-pages', '>= 0'),
@@ -248,7 +248,7 @@ module Molinillo
       end
 
       it 'can resolve when swapping changes transitive dependencies' do
-        index = TestIndex.new('restkit')
+        index = TestIndex.from_fixture('restkit')
         def index.sort_dependencies(dependencies, activated, conflicts)
           dependencies.sort_by do |d|
             [
@@ -307,11 +307,11 @@ module Molinillo
           end
 
           def versions_of(dependency_name)
-            specs[dependency_name].count
+            Array(specs[dependency_name]).count
           end
         end
 
-        index = swap_child_with_successors_index.new('swap_child_with_successors')
+        index = swap_child_with_successors_index.from_fixture('swap_child_with_successors')
         @resolver = described_class.new(index, TestUI.new)
         demands = [
           VersionKit::Dependency.new('build-essential', '>= 0.0.0'),
@@ -328,6 +328,50 @@ module Molinillo
           'nginx (2.7.6)',
           'yum-epel (0.6.6)',
           'yum (3.10.0)',
+        ]
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
+      end
+
+      it 'can resolve ur face' do
+        index = TestIndex.new(
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'z' => '= 2.0.0' }),
+            TestSpecification.new('name' => 'a', 'version' => '2.0.0', 'dependencies' => { 'z' => '= 1.0.0' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1.0.0', 'dependencies' => { 'a' => '< 2' }),
+            TestSpecification.new('name' => 'b', 'version' => '2.0.0', 'dependencies' => { 'a' => '< 2' }),
+          ],
+          'c' => [
+            TestSpecification.new('name' => 'c', 'version' => '1.0.0'),
+            TestSpecification.new('name' => 'c', 'version' => '2.0.0', 'dependencies' => { 'b' => '< 2' }),
+          ],
+          'z' => [
+            TestSpecification.new('name' => 'z', 'version' => '1.0.0'),
+            TestSpecification.new('name' => 'z', 'version' => '2.0.0'),
+          ]
+        )
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          index = ['c (>= 1.0.0)', 'b (< 2.0.0)', 'a (< 2.0.0)', 'c (= 1.0.0)']
+          dependencies.sort_by do |dep|
+            [
+              index.index(dep.to_s) || 999,
+            ]
+          end
+        end
+        @resolver = described_class.new(index, TestUI.new)
+        demands = [
+          VersionKit::Dependency.new('c', '= 1.0.0'),
+          VersionKit::Dependency.new('c', '>= 1.0.0'),
+          VersionKit::Dependency.new('z', '>= 1.0.0'),
+        ]
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expected = [
+          'c (1.0.0)',
+          'z (2.0.0)',
         ]
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
