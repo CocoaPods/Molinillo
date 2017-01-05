@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Only remove requirements from the to-be-resolved list if there are no
+  activated vertices depending upon them after swapping.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#5294](https://github.com/bundler/bundler/issues/5294)
 
 
 ## 0.5.4 (2016-11-14)
