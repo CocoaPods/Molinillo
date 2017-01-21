@@ -7,7 +7,7 @@ describe 'fuzzing' do
   let(:dependencies) do
     index.specs.keys.sample(Random.rand(5)).
       map do |d|
-      VersionKit::Dependency.new(
+      Gem::Dependency.new(
         d,
         "#{CONSTRAINTS.sample} #{Random.rand(2)}.#{Random.rand(2)}"
       )
@@ -22,7 +22,7 @@ describe 'fuzzing' do
   def validate_dependency_graph_from(graph, dependency)
     vertex = graph.vertex_named(dependency.name)
     spec = vertex.payload
-    expect(dependency).to be_satisfied_by(spec.version)
+    expect(dependency.requirement).to be_satisfied_by(spec.version)
     expect(spec.dependencies).to match_array(vertex.outgoing_edges.map(&:requirement))
     spec.dependencies.each do |d|
       validate_dependency_graph_from(graph, d)

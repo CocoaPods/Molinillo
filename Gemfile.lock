@@ -1,10 +1,3 @@
-GIT
-  remote: https://github.com/CocoaPods/VersionKit.git
-  revision: fa148992046c0a62db76778fe2ce914a6b3257c5
-  branch: master
-  specs:
-    version_kit (0.0.1)
-
 PATH
   remote: .
   specs:
@@ -101,7 +94,6 @@ DEPENDENCIES
   rake
   rspec
   rubocop
-  version_kit!
 
 BUNDLED WITH
-   1.13.6
+   1.14.0

@@ -27,6 +27,7 @@ env:
   - LANG="en_US.UTF-8"
 
 install:
+  - gem update --system
   - gem install bundler -v ">= 1.10"
   - rake bootstrap
 

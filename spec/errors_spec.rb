@@ -3,14 +3,14 @@ require File.expand_path('../spec_helper', __FILE__)
 
 module Molinillo
   describe NoSuchDependencyError do
-    let(:dependency) { VersionKit::Dependency.new('foo', '>= 1.0') }
+    let(:dependency) { Gem::Dependency.new('foo', '>= 1.0') }
     let(:required_by) { [] }
 
     subject { described_class.new(dependency, required_by) }
 
     describe '#message' do
       it 'says it is unable to find the spec' do
-        expect(subject.message).to eq('Unable to find a specification for `foo (>= 1.0.0)`')
+        expect(subject.message).to eq('Unable to find a specification for `foo (>= 1.0)`')
       end
 
       context 'when #required_by is not empty' do
@@ -18,7 +18,7 @@ module Molinillo
 
         it 'includes the source names' do
           expect(subject.message).to eq(
-            'Unable to find a specification for `foo (>= 1.0.0)` depended upon by `spec-1` and `spec-2`')
+            'Unable to find a specification for `foo (>= 1.0)` depended upon by `spec-1` and `spec-2`')
         end
       end
     end
