@@ -78,9 +78,23 @@ module Molinillo
         name = name_for(dependency)
         [
           activated.vertex_named(name).payload ? 0 : 1,
+          amount_constrained(dependency),
           conflicts[name] ? 0 : 1,
           activated.vertex_named(name).payload ? 0 : search_for(dependency).count,
         ]
+      end
+    end
+
+    def amount_constrained(dependency)
+      @amount_constrained ||= {}
+      @amount_constrained[dependency.name] ||= begin
+        all = specs[dependency.name].size
+        if all <= 1
+          all #- 1_000_000
+        else
+          search = search_for(dependency).size
+          search - all
+        end
       end
     end
   end

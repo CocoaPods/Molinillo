@@ -376,6 +376,32 @@ module Molinillo
 
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(expected)
       end
+
+      it 'does not reset parent tracking after swapping when another requirement led to the child' do
+        demands = [
+          Gem::Dependency.new('autobuild'),
+          Gem::Dependency.new('pastel'),
+          Gem::Dependency.new('tty-prompt'),
+          Gem::Dependency.new('tty-table'),
+        ]
+
+        index = BundlerIndex.from_fixture('rubygems-2017-01-24')
+        index.specs['autobuild'] = [
+          TestSpecification.new('name' => 'autobuild',
+                                'version' => '0.1.0',
+                                'dependencies' => {
+                                  'tty-prompt' => '>= 0.6.0, ~> 0.6.0',
+                                  'pastel' => '>= 0.6.0, ~> 0.6.0',
+                                }),
+        ]
+
+        @resolver = described_class.new(index, TestUI.new)
+        demands.each { |d| index.search_for(d) }
+
+        resolved = @resolver.resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s).sort).to include('pastel (0.6.1)', 'tty-table (0.6.0)')
+      end
     end
   end
 end
