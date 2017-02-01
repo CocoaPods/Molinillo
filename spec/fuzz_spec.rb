@@ -63,8 +63,12 @@ describe 'fuzzing' do
             end
             validate_dependency_graph(graph) if graph
             validate_unresolvable(error) if error
-            expect(graph).to eq(naive),
-                             "#{graph && graph.map(&:payload).map(&:to_s)} vs #{naive && naive.map(&:payload).map(&:to_s)}"
+
+            if naive
+              expect(graph).to equal_dependency_graph(naive)
+            else
+              expect(graph).to be_nil, "#{graph && graph.map(&:payload).map(&:to_s)} vs nil"
+            end
           end
         end
       end
