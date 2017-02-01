@@ -98,4 +98,71 @@ module Molinillo
       end
     end
   end
+
+  class ReverseBundlerIndex < BundlerIndex
+    def sort_dependencies(*)
+      super.reverse
+    end
+  end
+
+  class RandomSortIndex < TestIndex
+    def sort_dependencies(dependencies, _, _)
+      dependencies.shuffle
+    end
+  end
+
+  class CocoaPodsIndex < TestIndex
+    def sort_dependencies(dependencies, activated, conflicts)
+      dependencies.sort_by do |d|
+        [
+          activated.vertex_named(d.name).payload ? 0 : 1,
+          dependency_prerelease?(d) ? 0 : 1,
+          conflicts[d.name] ? 0 : 1,
+          search_for(d).count,
+        ]
+      end
+    end
+
+    def requirement_satisfied_by?(requirement, activated, spec)
+      existing_vertices = activated.vertices.values.select do |v|
+        v.name.split('/').first == requirement.name.split('/').first
+      end
+      existing = existing_vertices.map(&:payload).compact.first
+      if existing
+        existing.version == spec.version && requirement.requirement.satisfied_by?(spec.version)
+      else
+        requirement.requirement.satisfied_by? spec.version
+      end
+    end
+  end
+
+  class BerkshelfIndex < TestIndex
+    # The bug we want to write a regression test for only occurs when
+    # Molinillo processes dependencies in a specific order for the given
+    # index and demands. This sorting logic ensures we hit the repro case
+    # when using the index file "swap_child_with_successors"
+    def sort_dependencies(dependencies, activated, conflicts)
+      dependencies.sort_by do |dependency|
+        name = name_for(dependency)
+        [
+          activated.vertex_named(name).payload ? 0 : 1,
+          conflicts[name] ? 0 : 1,
+          activated.vertex_named(name).payload ? 0 : versions_of(name),
+        ]
+      end
+    end
+
+    def versions_of(dependency_name)
+      Array(specs[dependency_name]).count
+    end
+  end
+
+  INDICES = [
+    TestIndex,
+    BundlerIndex,
+    ReverseBundlerIndex,
+    RandomSortIndex,
+    CocoaPodsIndex,
+    BerkshelfIndex,
+  ].freeze
 end

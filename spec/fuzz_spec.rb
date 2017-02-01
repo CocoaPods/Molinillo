@@ -13,7 +13,8 @@ describe 'fuzzing' do
       )
     end
   end
-  let(:index) { Molinillo::TestIndex.from_fixture('fuzz') }
+  let(:index_class) { Molinillo::TestIndex }
+  let(:index) { index_class.from_fixture('fuzz') }
   let(:ui) { Molinillo::TestUI.new }
   let(:resolver) { Molinillo::Resolver.new(index, ui) }
 
@@ -48,19 +49,24 @@ describe 'fuzzing' do
   end
 
   def self.fuzz!(seeds = [])
-    seeds.each do |seed|
-      it "fuzzes with seed #{seed}" do
-        Random.srand seed
-        graph, error = begin
-          subject
-          [subject, nil]
-        rescue => e
-          [nil, e]
+    Molinillo::INDICES.each do |ic|
+      context "with #{ic.to_s.split('::').last}" do
+        let(:index_class) { ic }
+        seeds.each do |seed|
+          it "fuzzes with seed #{seed}" do
+            Random.srand seed
+            graph, error = begin
+              subject
+              [subject, nil]
+            rescue => e
+              [nil, e]
+            end
+            validate_dependency_graph(graph) if graph
+            validate_unresolvable(error) if error
+            expect(graph).to eq(naive),
+                             "#{graph && graph.map(&:payload).map(&:to_s)} vs #{naive && naive.map(&:payload).map(&:to_s)}"
+          end
         end
-        validate_dependency_graph(graph) if graph
-        validate_unresolvable(error) if error
-        expect(graph).to eq(naive),
-                         "#{graph && graph.map(&:payload).map(&:to_s)} vs #{naive && naive.map(&:payload).map(&:to_s)}"
       end
     end
   end

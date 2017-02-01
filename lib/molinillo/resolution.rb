@@ -381,7 +381,7 @@ module Molinillo
               removed_names.include?(name_for(r))
             end
           elsif !dep_matched
-            # also reset if we're removing the edge, but only if it's parent has
+            # also reset if we're removing the edge, but only if its parent has
             # already been fixed up
             @parent_of[requirement] = states.size - 1 if @parent_of[requirement].nil?
 

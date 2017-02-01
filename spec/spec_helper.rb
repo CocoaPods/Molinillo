@@ -34,6 +34,7 @@ require 'molinillo'
 require 'spec_helper/index'
 require 'spec_helper/specification'
 require 'spec_helper/ui'
+require 'spec_helper/equal_dependency_graph'
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
