@@ -98,6 +98,7 @@ module Molinillo
       "#{self.class}:#{vertices.values.inspect}"
     end
 
+    # @param [Hash] options options for dot output.
     # @return [String] Returns a dot format representation of the graph
     def to_dot(options = {})
       edge_label = options.delete(:edge_label)
