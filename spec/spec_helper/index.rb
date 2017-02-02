@@ -106,7 +106,7 @@ module Molinillo
   end
 
   class RandomSortIndex < TestIndex
-    def sort_dependencies(dependencies, _, _)
+    def sort_dependencies(dependencies, _activated, _conflicts)
       dependencies.shuffle
     end
   end
