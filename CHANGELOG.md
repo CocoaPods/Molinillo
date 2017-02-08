@@ -8,7 +8,11 @@
 
 ##### Bug Fixes
 
-* None.  
+* Only reset the parent of a requirement after swapping when its original parent
+  was the same vertex being swapped.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#5359](https://github.com/bundler/bundler/issues/5359)
+  [bundler#5362](https://github.com/bundler/bundler/issues/5362)
 
 
 ## 0.5.5 (2017-01-07)
