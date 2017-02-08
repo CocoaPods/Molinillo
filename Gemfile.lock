@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    molinillo (0.5.5)
+    molinillo (0.5.6)
 
 GEM
   remote: https://rubygems.org/
