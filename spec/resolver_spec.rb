@@ -5,7 +5,7 @@ module Molinillo
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'
 
   class TestCase
-    attr_accessor :name, :requested, :base, :conflicts, :resolver, :result, :index
+    attr_accessor :name, :requested, :base, :conflicts, :result, :index
 
     def initialize(fixture_path)
       File.open(fixture_path) do |fixture|
@@ -43,16 +43,18 @@ module Molinillo
           self.conflicts = test_case['conflicts'].to_set
         end
       end
-
-      self.resolver = Resolver.new(index, TestUI.new)
     end
 
-    def run(_index_class, context)
+    def run(index_class, context)
       test_case = self
 
       context.instance_eval do
         it test_case.name do
-          resolve = lambda { test_case.resolver.resolve(test_case.requested, test_case.base) }
+          resolve = lambda do
+            index = index_class.new(test_case.index.specs)
+            resolver = Resolver.new(index, TestUI.new)
+            resolver.resolve(test_case.requested, test_case.base)
+          end
 
           if test_case.conflicts.any?
             expect { resolve.call }.to raise_error do |error|
