@@ -52,7 +52,7 @@ module Molinillo
         @base = base
         @states = []
         @iteration_counter = 0
-        @parent_of = {}
+        @parents_of = Hash.new { |h, k| h[k] = [] }
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -178,14 +178,14 @@ module Molinillo
       # Unwinds the states stack because a conflict has been encountered
       # @return [void]
       def unwind_for_conflict
-        debug(depth) { "Unwinding for conflict: #{requirement}" }
+        debug(depth) { "Unwinding for conflict: #{requirement} to #{state_index_for_unwind / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((state_index_for_unwind + 1)..-1)
           raise VersionConflict.new(c) unless state
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           index = states.size - 1
-          @parent_of.reject! { |_, i| i >= index }
+          @parents_of.each { |_, a| a.reject! { |i| i >= index } }
         end
       end
 
@@ -214,7 +214,7 @@ module Molinillo
       #   to the list of requirements.
       def parent_of(requirement)
         return unless requirement
-        return unless index = @parent_of[requirement]
+        return unless index = @parents_of[requirement].last
         return unless parent_state = @states[index]
         parent_state.requirement
       end
@@ -361,18 +361,20 @@ module Molinillo
         deps = dependencies_for(payload).group_by(&method(:name_for))
         vertex.outgoing_edges.each do |outgoing_edge|
           requirement = outgoing_edge.requirement
-          parent_index = @parent_of[requirement]
+          parent_index = @parents_of[requirement].last
           succ = outgoing_edge.destination
           matching_deps = Array(deps[succ.name])
           dep_matched = matching_deps.include?(requirement)
 
-          # only reset the parent index when it was originally required by the
+          # only push the current index when it was originally required by the
           # same named spec
-          @parent_of[requirement] = states.size - 1 if parent_index && states[parent_index].name == name
+          if parent_index && states[parent_index].name == name
+            @parents_of[requirement].push(states.size - 1)
+          end
 
           if matching_deps.empty? && !succ.root? && succ.predecessors.to_a == [vertex]
             debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
-            succ.requirements.each { |r| @parent_of.delete(r) }
+            succ.requirements.each { |r| @parents_of.delete(r) }
 
             removed_names = activated.detach_vertex_named(succ.name).map(&:name)
             requirements.delete_if do |r|
@@ -383,7 +385,7 @@ module Molinillo
           elsif !dep_matched
             # also reset if we're removing the edge, but only if its parent has
             # already been fixed up
-            @parent_of[requirement] = states.size - 1 if @parent_of[requirement].nil?
+            @parents_of[requirement].push(states.size - 1) if @parents_of[requirement].empty?
 
             activated.delete_edge(outgoing_edge)
             requirements.delete(requirement)
@@ -443,7 +445,8 @@ module Molinillo
         nested_dependencies.each do |d|
           activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d)
           parent_index = states.size - 1
-          @parent_of[d] ||= parent_index
+          parents = @parents_of[d]
+          parents << parent_index if parents.empty?
         end
 
         push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)

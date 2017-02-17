@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Keep a stack of parents per requirement, so unwinding past a swap point that
+  updated the parent of the requirement works.  
+  [Samuel Giddins](https://github.com/segiddins)
+  [bundler#5425](https://github.com/bundler/bundler/issues/5425)
 
 
 ## 0.5.6 (2017-02-08)
