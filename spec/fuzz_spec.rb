@@ -51,6 +51,12 @@ describe 'fuzzing' do
   def self.fuzz!(seeds = [])
     Molinillo::INDICES.each do |ic|
       context "with #{ic.to_s.split('::').last}" do
+        around(:example) do |ex|
+          old_seed = Random::DEFAULT.seed
+          ex.run
+          Random.srand old_seed
+        end
+
         let(:index_class) { ic }
         seeds.each do |seed|
           it "fuzzes with seed #{seed}" do
@@ -82,7 +88,7 @@ describe 'fuzzing' do
     188,
     666,
     7_898_789,
-    0.35096144504316984,
-    3.14159,
+    0,
+    3,
   ].concat(Array.new(ENV.fetch('MOLINILLO_FUZZER', '0').to_i) { Random.rand })
 end if RUBY_VERSION >= '1.9'

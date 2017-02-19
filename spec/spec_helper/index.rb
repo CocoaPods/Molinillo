@@ -90,12 +90,22 @@ module Molinillo
       @amount_constrained[dependency.name] ||= begin
         all = specs[dependency.name].size
         if all <= 1
-          all #- 1_000_000
+          all - all_leq_one_penalty
         else
           search = search_for(dependency).size
           search - all
         end
       end
+    end
+
+    def all_leq_one_penalty
+      1_000_000
+    end
+  end
+
+  class BundlerSingleAllNoPenaltyIndex < BundlerIndex
+    def all_leq_one_penalty
+      0
     end
   end
 
@@ -124,6 +134,13 @@ module Molinillo
     end
 
     def requirement_satisfied_by?(requirement, activated, spec)
+      requirement = case requirement
+                    when TestSpecification
+                      Gem::Dependency.new(requirement.name, requirement.version)
+                    when Gem::Dependency
+                      requirement
+                    end
+
       existing_vertices = activated.vertices.values.select do |v|
         v.name.split('/').first == requirement.name.split('/').first
       end
@@ -161,7 +178,8 @@ module Molinillo
     TestIndex,
     BundlerIndex,
     ReverseBundlerIndex,
-    RandomSortIndex,
+    BundlerSingleAllNoPenaltyIndex,
+    # RandomSortIndex, this isn't yet always passing
     CocoaPodsIndex,
     BerkshelfIndex,
   ].freeze

@@ -4,9 +4,10 @@ RSpec::Matchers.define :equal_dependency_graph do |expected|
   attr_reader :actual, :expected
 
   match do |actual|
+    eql = actual == expected
     @expected = expected.to_dot(:edge_label => proc { |e| e.destination.payload.version })
     @actual = actual.to_dot(:edge_label => proc { |e| e.destination.payload.version })
-    actual == expected
+    eql
   end
 
   failure_message do
