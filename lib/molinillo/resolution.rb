@@ -105,7 +105,7 @@ module Molinillo
 
         handle_missing_or_push_dependency_state(initial_state)
 
-        debug { "Starting resolution (#{@started_at})" }
+        debug { "Starting resolution (#{@started_at})\nUser-requested dependencies: #{original_requested}" }
         resolver_ui.before_resolution
       end
 
@@ -383,6 +383,7 @@ module Molinillo
               removed_names.include?(name_for(r))
             end
           elsif !dep_matched
+            debug(depth) { "Removing orphaned dependency #{requirement} after swapping #{name}" }
             # also reset if we're removing the edge, but only if its parent has
             # already been fixed up
             @parents_of[requirement].push(states.size - 1) if @parents_of[requirement].empty?
@@ -430,7 +431,7 @@ module Molinillo
       # @return [void]
       def activate_spec
         conflicts.delete(name)
-        debug(depth) { 'Activated ' + name + ' at ' + possibility.to_s }
+        debug(depth) { "Activated #{name} at #{possibility}" }
         activated.set_payload(name, possibility)
         require_nested_dependencies_for(possibility)
       end
