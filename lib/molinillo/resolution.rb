@@ -409,13 +409,18 @@ module Molinillo
       # @return [Boolean] whether the current spec is satisfied as a new
       # possibility.
       def new_spec_satisfied?
+        unless requirement_satisfied_by?(requirement, activated, possibility)
+          debug(depth) { 'Unsatisfied by requested spec' }
+          return false
+        end
+
         locked_requirement = locked_requirement_named(name)
-        requested_spec_satisfied = requirement_satisfied_by?(requirement, activated, possibility)
+
         locked_spec_satisfied = !locked_requirement ||
           requirement_satisfied_by?(locked_requirement, activated, possibility)
-        debug(depth) { 'Unsatisfied by requested spec' } unless requested_spec_satisfied
         debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
-        requested_spec_satisfied && locked_spec_satisfied
+
+        locked_spec_satisfied
       end
 
       # @param [String] requirement_name the spec name to search for
