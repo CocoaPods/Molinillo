@@ -20,11 +20,11 @@ module Molinillo
         expect(@graph.vertex_named('Child')).to eq(@child)
       end
 
-      it 'returns nil for non-existant root vertices' do
+      it 'returns nil for non-existent root vertices' do
         expect(@graph.root_vertex_named('missing')).to be_nil
       end
 
-      it 'returns nil for non-existant vertices' do
+      it 'returns nil for non-existent vertices' do
         expect(@graph.vertex_named('missing')).to be_nil
       end
     end
