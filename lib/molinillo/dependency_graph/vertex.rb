@@ -18,6 +18,10 @@ module Molinillo
       attr_accessor :root
       alias root? root
 
+      # @return [Integer] the cached hash value for this vertex.
+      #
+      attr_reader :hash_value
+
       # Initializes a vertex with the given name and payload.
       # @param [String] name see {#name}
       # @param [Object] payload see {#payload}
@@ -27,6 +31,7 @@ module Molinillo
         @explicit_requirements = []
         @outgoing_edges = []
         @incoming_edges = []
+        @hash_value = nil
       end
 
       # @return [Array<Object>] all of the requirements that required
@@ -100,7 +105,10 @@ module Molinillo
 
       # @return [Fixnum] a hash for the vertex based upon its {#name}
       def hash
-        name.hash
+        if @hash_value.nil?
+          @hash_value = name.hash
+        end
+        @hash_value
       end
 
       # Is there a path from `self` to `other` following edges in the
