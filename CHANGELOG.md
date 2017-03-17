@@ -4,7 +4,9 @@
 
 ##### Enhancements
 
-* None.  
+* Improve performance of dependency resolution.
+  [yanzhiwei147](https://github.com/yanzhiwei147)
+  [#5510](https://github.com/CocoaPods/CocoaPods/pull/5510)
 
 ##### Bug Fixes
 

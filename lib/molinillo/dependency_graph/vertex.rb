@@ -5,7 +5,7 @@ module Molinillo
     # {#payload}
     class Vertex
       # @return [String] the name of the vertex
-      attr_accessor :name
+      attr_reader :name
 
       # @return [Object] the payload the vertex holds
       attr_accessor :payload
@@ -27,6 +27,7 @@ module Molinillo
         @explicit_requirements = []
         @outgoing_edges = []
         @incoming_edges = []
+        @hash_value = nil
       end
 
       # @return [Array<Object>] all of the requirements that required
@@ -100,7 +101,24 @@ module Molinillo
 
       # @return [Fixnum] a hash for the vertex based upon its {#name}
       def hash
-        name.hash
+        if @hash_value.nil?
+          @hash_value = name.hash
+        end
+        @hash_value
+      end
+
+      # Sets the name of the vertex.
+      #
+      # @param  [String] name
+      #         the vertex name.
+      #
+      # @return [void]
+      #
+      # @visibility private
+      #
+      def name=(name)
+        @hash_value = nil
+        @name = name.frozen? ? name : name.dup.freeze
       end
 
       # Is there a path from `self` to `other` following edges in the
