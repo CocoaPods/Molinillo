@@ -192,21 +192,12 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        current_requirement = requirement
-        existing_requirement = requirement_for_existing_name(name)
-        index = -1
-        [current_requirement, existing_requirement].each do |r|
-          until r.nil?
-            current_state = find_state_for(r)
-            if state_any?(current_state)
-              current_index = states.index(current_state)
-              index = current_index if current_index > index
-              break
-            end
-            r = parent_of(r)
-          end
+        index = states.size - 2
+        until index < 0
+          current_state = @states[index]
+          return index if state_any?(current_state) && current_state.is_a?(DependencyState)
+          index -= 1
         end
-
         index
       end
 
