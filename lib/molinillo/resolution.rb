@@ -21,7 +21,8 @@ module Molinillo
         :possibility,
         :locked_requirement,
         :requirement_trees,
-        :activated_by_name
+        :activated_by_name,
+        :root_error
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -134,7 +135,12 @@ module Molinillo
       # @return [void]
       def process_topmost_state
         if possibility
-          attempt_to_activate
+          begin
+            attempt_to_activate
+          rescue CircularDependencyError => e
+            create_conflict(e)
+            unwind_for_conflict until possibility && state.is_a?(DependencyState)
+          end
         else
           create_conflict if state.is_a? PossibilityState
           unwind_for_conflict until possibility && state.is_a?(DependencyState)
@@ -181,7 +187,10 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{state_index_for_unwind / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((state_index_for_unwind + 1)..-1)
-          raise VersionConflict.new(c) unless state
+          unless state
+            error = c.values.map(&:root_error).detect {|e| ! e.nil? }
+            raise error || VersionConflict.new(c)
+          end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           index = states.size - 1
@@ -241,7 +250,7 @@ module Molinillo
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
-      def create_conflict
+      def create_conflict(root_error=nil)
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 
@@ -261,7 +270,8 @@ module Molinillo
           possibility,
           locked_requirement,
           requirement_trees,
-          activated_by_name
+          activated_by_name,
+          root_error
         )
       end
 
