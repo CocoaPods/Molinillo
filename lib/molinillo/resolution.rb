@@ -195,7 +195,9 @@ module Molinillo
         conflict_set = conflicts.keys.map do |conflict_name|
           vertex = activated.vertex_named(conflict_name)
           vertex.recursive_predecessors unless vertex.nil?
-        end.flatten.compact.map(&:name).uniq
+        end.flatten.compact.map(&:name)
+        conflict_set = (conflict_set + conflicts.keys).uniq
+
         index = states.size - 2
         until index < 0
           current_state = @states[index]
