@@ -352,7 +352,7 @@ module Molinillo
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
-          push_state_for_requirements(new_requirements, false)
+          push_state_for_requirements(new_requirements)
         else
           return if attempt_to_swap_possibility
           create_conflict
@@ -480,15 +480,20 @@ module Molinillo
           parents << parent_index if parents.empty?
         end
 
-        push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)
+        push_state_for_new_requirements(nested_dependencies)
+      end
+
+      def push_state_for_new_requirements(new_requirements)
+        new_requirements -= requirements
+        new_requirements = sort_dependencies(new_requirements, activated, conflicts) unless new_requirements.empty?
+        push_state_for_requirements(requirements + new_requirements)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated)
-        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
+      def push_state_for_requirements(new_requirements, new_activated = activated)
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = new_requirement ? search_for(new_requirement) : []
@@ -513,7 +518,7 @@ module Molinillo
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
           state.activated.detach_vertex_named(state.name)
-          push_state_for_requirements(state.requirements.dup, false, state.activated)
+          push_state_for_requirements(state.requirements.dup, state.activated)
         else
           states.push(state).tap { activated.tag(state) }
         end
