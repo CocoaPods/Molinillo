@@ -201,21 +201,33 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        conflict_set = conflicts.keys.map do |conflict_name|
-          vertex = activated.vertex_named(conflict_name)
-          vertex.recursive_predecessors unless vertex.nil?
-        end.flatten.compact.map(&:name)
-        conflict_set = (conflict_set + conflicts.keys).uniq
+        # TODO maybe move all this somewhere else
+        conflict_set = conflicts.map do |key, conflict|
+          # TODO maybe only include conflicting requirements
+          requiring_specs = conflict.requirements.keys.select do |r|
+            r.is_a?(TestSpecification)
+          end
+          [key] + requiring_specs.map(&:name)
+        end.flatten
+        conflict_set += conflict_set.map do |conflict_name|
+          parents = activated.vertex_named(conflict_name).predecessors
+          parents.first.name unless parents.nil? || parents.empty?
+        end
+        conflict_set = conflict_set.compact.uniq
 
         index = states.size - 2
         until index < 0
           current_state = @states[index]
+          if current_state.conflict_set
+            conflict_set = (conflict_set + current_state.conflict_set).uniq
+          end
           if (
               current_state.is_a?(DependencyState) &&
               state_any?(current_state) &&
               conflict_set.include?(current_state.name)
           )
-            return index if state_any?(current_state) && current_state.is_a?(DependencyState)
+            current_state.conflict_set = conflict_set
+            return index
           end
           index -= 1
         end

@@ -15,7 +15,8 @@ module Molinillo
     :requirement,
     :possibilities,
     :depth,
-    :conflicts
+    :conflicts,
+    :conflict_set
   )
 
   class ResolutionState
