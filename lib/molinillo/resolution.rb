@@ -508,10 +508,6 @@ module Molinillo
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = new_requirement ? search_for(new_requirement) : []
-        existing_node = activated.vertex_named(new_name)
-        if existing_node && existing_node.payload
-          possibilities = possibilities & [existing_node.payload]
-        end
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
           new_requirement, possibilities, depth, conflicts.dup
