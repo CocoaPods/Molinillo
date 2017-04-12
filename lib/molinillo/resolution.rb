@@ -356,68 +356,9 @@ module Molinillo
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements)
         else
-          return if attempt_to_swap_possibility
           create_conflict
           debug(depth) { "Unsatisfied by existing spec (#{existing_node.payload})" }
           unwind_for_conflict
-        end
-      end
-
-      # Attempts to swp the current {#possibility} with the already-activated
-      # spec with the given name
-      # @return [Boolean] Whether the possibility was swapped into {#activated}
-      def attempt_to_swap_possibility
-        activated.tag(:swap)
-        vertex = activated.vertex_named(name)
-        activated.set_payload(name, possibility)
-        if !vertex.requirements.
-           all? { |r| requirement_satisfied_by?(r, activated, possibility) } ||
-            !new_spec_satisfied?
-          activated.rewind_to(:swap)
-          return
-        end
-        fixup_swapped_children(vertex)
-        activate_spec
-      end
-
-      # Ensures there are no orphaned successors to the given {vertex}.
-      # @param [DependencyGraph::Vertex] vertex the vertex to fix up.
-      # @return [void]
-      def fixup_swapped_children(vertex) # rubocop:disable Metrics/CyclomaticComplexity
-        payload = vertex.payload
-        deps = dependencies_for(payload).group_by(&method(:name_for))
-        vertex.outgoing_edges.each do |outgoing_edge|
-          requirement = outgoing_edge.requirement
-          parent_index = @parents_of[requirement].last
-          succ = outgoing_edge.destination
-          matching_deps = Array(deps[succ.name])
-          dep_matched = matching_deps.include?(requirement)
-
-          # only push the current index when it was originally required by the
-          # same named spec
-          if parent_index && states[parent_index].name == name
-            @parents_of[requirement].push(states.size - 1)
-          end
-
-          if matching_deps.empty? && !succ.root? && succ.predecessors.to_a == [vertex]
-            debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
-            succ.requirements.each { |r| @parents_of.delete(r) }
-
-            removed_names = activated.detach_vertex_named(succ.name).map(&:name)
-            requirements.delete_if do |r|
-              # the only removed vertices are those with no other requirements,
-              # so it's safe to delete only based upon name here
-              removed_names.include?(name_for(r))
-            end
-          elsif !dep_matched
-            debug(depth) { "Removing orphaned dependency #{requirement} after swapping #{name}" }
-            # also reset if we're removing the edge, but only if its parent has
-            # already been fixed up
-            @parents_of[requirement].push(states.size - 1) if @parents_of[requirement].empty?
-
-            activated.delete_edge(outgoing_edge)
-            requirements.delete(requirement)
-          end
         end
       end
 
