@@ -202,28 +202,33 @@ module Molinillo
       #   case of conflict.
       def state_index_for_unwind
         # TODO maybe move all this somewhere else
-        conflict_set = conflicts.map do |key, conflict|
+        conflict_set = Set.new
+        conflicts.each do |key, conflict|
+          conflict_set.add key
+
           parents = conflict.requirements.keys.select do |parent|
             parent.is_a?(TestSpecification)
           end.map(&:name)
-          predecessors = parents.map do |name|
-            activated.vertex_named(name).recursive_predecessors.map(&:name)
+          conflict_set.merge parents
+
+          parents.map do |name|
+            predecessors = activated.vertex_named(name).recursive_predecessors
+            conflict_set.merge predecessors.map(&:name)
           end
-          [key] + parents + predecessors
-        end.flatten.uniq
+        end
 
         index = states.size - 2
         until index < 0
           current_state = @states[index]
           if current_state.conflict_set
-            conflict_set = (conflict_set + current_state.conflict_set).uniq
+            conflict_set.merge current_state.conflict_set
           end
           if (
               current_state.is_a?(DependencyState) &&
               state_any?(current_state) &&
               conflict_set.include?(current_state.name)
           )
-            current_state.conflict_set = conflict_set
+            current_state.conflict_set = conflict_set.dup
             return index
           end
           index -= 1
