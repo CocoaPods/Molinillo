@@ -488,7 +488,12 @@ module Molinillo
       def push_state_for_new_requirements(new_requirements)
         new_requirements -= requirements
         new_requirements = sort_dependencies(new_requirements, activated, conflicts) unless new_requirements.empty?
-        push_state_for_requirements(requirements + new_requirements)
+        full_requirements = (requirements + new_requirements)
+        full_requirements = full_requirements.partition do |r|
+          existing_node = activated.vertex_named(r.name)
+          existing_node && existing_node.payload
+        end.flatten
+        push_state_for_requirements(full_requirements)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
