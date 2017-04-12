@@ -203,11 +203,13 @@ module Molinillo
       def state_index_for_unwind
         # TODO maybe move all this somewhere else
         conflict_set = conflicts.map do |key, conflict|
-          # TODO maybe only include conflicting requirements
-          requiring_specs = conflict.requirements.keys.select do |r|
-            r.is_a?(TestSpecification)
+          # TODO what about when no possibilities and no existing spec?
+          spec = conflict.possibility || activated.vertex_named(key)
+          requiring_specs = conflict.requirements.select do |reason, req|
+            reason.is_a?(TestSpecification) &&
+              ! requirement_satisfied_by?(req, activated, spec)
           end
-          [key] + requiring_specs.map(&:name)
+          [key] + requiring_specs.map {|s| s.first.name }
         end.flatten
         conflict_set += conflict_set.map do |conflict_name|
           parents = activated.vertex_named(conflict_name).predecessors
