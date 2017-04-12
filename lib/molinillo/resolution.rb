@@ -482,13 +482,13 @@ module Molinillo
           parents << parent_index if parents.empty?
         end
 
-        push_state_for_new_requirements(nested_dependencies)
+        push_state_for_new_requirements(requirements + nested_dependencies)
       end
 
       def push_state_for_new_requirements(new_requirements)
-        new_requirements -= requirements
+        new_requirements -= original_requested
         new_requirements = sort_dependencies(new_requirements, activated, conflicts) unless new_requirements.empty?
-        full_requirements = (requirements + new_requirements)
+        full_requirements = (original_requested + new_requirements)
         full_requirements = full_requirements.partition do |r|
           existing_node = activated.vertex_named(r.name)
           existing_node && existing_node.payload
