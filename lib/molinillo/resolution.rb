@@ -208,12 +208,12 @@ module Molinillo
 
           parents = conflict.requirements.keys.select do |parent|
             parent.is_a?(TestSpecification)
-          end.map(&:name)
+          end.map {|p| name_for(p) }
           conflict_set.merge parents
 
           parents.map do |name|
             predecessors = activated.vertex_named(name).recursive_predecessors
-            conflict_set.merge predecessors.map(&:name)
+            conflict_set.merge predecessors.map {|p| name_for(p) }
           end
         end
 
