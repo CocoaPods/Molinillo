@@ -216,6 +216,7 @@ module Molinillo
             conflict_set.merge predecessors.map {|p| name_for(p) }
           end
         end
+        debug(depth) { "Conflict set: #{conflict_set.inspect}" }
 
         index = states.size - 2
         until index < 0
