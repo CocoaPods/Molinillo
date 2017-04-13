@@ -21,7 +21,8 @@ module Molinillo
         :possibility,
         :locked_requirement,
         :requirement_trees,
-        :activated_by_name
+        :activated_by_name,
+        :root_error
       )
 
       # @return [SpecificationProvider] the provider that knows about
@@ -134,7 +135,12 @@ module Molinillo
       # @return [void]
       def process_topmost_state
         if possibility
-          attempt_to_activate
+          begin
+            attempt_to_activate
+          rescue CircularDependencyError => e
+            create_conflict(e)
+            unwind_for_conflict until possibility && state.is_a?(DependencyState)
+          end
         else
           create_conflict if state.is_a? PossibilityState
           unwind_for_conflict until possibility && state.is_a?(DependencyState)
@@ -181,7 +187,10 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{state_index_for_unwind / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((state_index_for_unwind + 1)..-1)
-          raise VersionConflict.new(c) unless state
+          unless state
+            error = c.values.map(&:root_error).detect {|e| ! e.nil? }
+            raise error || VersionConflict.new(c)
+          end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           index = states.size - 1
@@ -192,21 +201,39 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        current_requirement = requirement
-        existing_requirement = requirement_for_existing_name(name)
-        index = -1
-        [current_requirement, existing_requirement].each do |r|
-          until r.nil?
-            current_state = find_state_for(r)
-            if state_any?(current_state)
-              current_index = states.index(current_state)
-              index = current_index if current_index > index
-              break
-            end
-            r = parent_of(r)
+        # TODO maybe move all this somewhere else
+        conflict_set = Set.new
+        conflicts.each do |key, conflict|
+          conflict_set.add key
+
+          parents = conflict.requirements.keys.select do |parent|
+            parent.is_a?(TestSpecification)
+          end.map {|p| name_for(p) }
+          conflict_set.merge parents
+
+          parents.map do |name|
+            predecessors = activated.vertex_named(name).recursive_predecessors
+            conflict_set.merge predecessors.map {|p| name_for(p) }
           end
         end
+        debug(depth) { "Conflict set: #{conflict_set.inspect}" }
 
+        index = states.size - 2
+        until index < 0
+          current_state = @states[index]
+          if current_state.conflict_set
+            conflict_set.merge current_state.conflict_set
+          end
+          if (
+              current_state.is_a?(DependencyState) &&
+              state_any?(current_state) &&
+              conflict_set.include?(current_state.name)
+          )
+            current_state.conflict_set = conflict_set.dup
+            return index
+          end
+          index -= 1
+        end
         index
       end
 
@@ -241,7 +268,7 @@ module Molinillo
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
-      def create_conflict
+      def create_conflict(root_error=nil)
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 
@@ -261,7 +288,8 @@ module Molinillo
           possibility,
           locked_requirement,
           requirement_trees,
-          activated_by_name
+          activated_by_name,
+          root_error
         )
       end
 
@@ -327,70 +355,11 @@ module Molinillo
         existing_spec = existing_node.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
-          push_state_for_requirements(new_requirements, false)
+          push_state_for_requirements(new_requirements)
         else
-          return if attempt_to_swap_possibility
           create_conflict
           debug(depth) { "Unsatisfied by existing spec (#{existing_node.payload})" }
           unwind_for_conflict
-        end
-      end
-
-      # Attempts to swp the current {#possibility} with the already-activated
-      # spec with the given name
-      # @return [Boolean] Whether the possibility was swapped into {#activated}
-      def attempt_to_swap_possibility
-        activated.tag(:swap)
-        vertex = activated.vertex_named(name)
-        activated.set_payload(name, possibility)
-        if !vertex.requirements.
-           all? { |r| requirement_satisfied_by?(r, activated, possibility) } ||
-            !new_spec_satisfied?
-          activated.rewind_to(:swap)
-          return
-        end
-        fixup_swapped_children(vertex)
-        activate_spec
-      end
-
-      # Ensures there are no orphaned successors to the given {vertex}.
-      # @param [DependencyGraph::Vertex] vertex the vertex to fix up.
-      # @return [void]
-      def fixup_swapped_children(vertex) # rubocop:disable Metrics/CyclomaticComplexity
-        payload = vertex.payload
-        deps = dependencies_for(payload).group_by(&method(:name_for))
-        vertex.outgoing_edges.each do |outgoing_edge|
-          requirement = outgoing_edge.requirement
-          parent_index = @parents_of[requirement].last
-          succ = outgoing_edge.destination
-          matching_deps = Array(deps[succ.name])
-          dep_matched = matching_deps.include?(requirement)
-
-          # only push the current index when it was originally required by the
-          # same named spec
-          if parent_index && states[parent_index].name == name
-            @parents_of[requirement].push(states.size - 1)
-          end
-
-          if matching_deps.empty? && !succ.root? && succ.predecessors.to_a == [vertex]
-            debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
-            succ.requirements.each { |r| @parents_of.delete(r) }
-
-            removed_names = activated.detach_vertex_named(succ.name).map(&:name)
-            requirements.delete_if do |r|
-              # the only removed vertices are those with no other requirements,
-              # so it's safe to delete only based upon name here
-              removed_names.include?(name_for(r))
-            end
-          elsif !dep_matched
-            debug(depth) { "Removing orphaned dependency #{requirement} after swapping #{name}" }
-            # also reset if we're removing the edge, but only if its parent has
-            # already been fixed up
-            @parents_of[requirement].push(states.size - 1) if @parents_of[requirement].empty?
-
-            activated.delete_edge(outgoing_edge)
-            requirements.delete(requirement)
-          end
         end
       end
 
@@ -455,15 +424,29 @@ module Molinillo
           parents << parent_index if parents.empty?
         end
 
-        push_state_for_requirements(requirements + nested_dependencies, !nested_dependencies.empty?)
+        push_state_for_new_requirements(requirements + nested_dependencies)
+      end
+
+      def push_state_for_new_requirements(requirements)
+        requirements = sort_dependencies(requirements, activated, conflicts)
+        idx = 0
+        requirements.sort_by! do |r|
+          idx += 1
+          existing_node = activated.vertex_named(r.name)
+          [
+            original_requested.include?(r) ? 0 : 1,
+            existing_node && existing_node.payload ? 0 : 1,
+            idx
+          ]
+        end
+        push_state_for_requirements(requirements)
       end
 
       # Pushes a new {DependencyState} that encapsulates both existing and new
       # requirements
       # @param [Array] new_requirements
       # @return [void]
-      def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated)
-        new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
+      def push_state_for_requirements(new_requirements, new_activated = activated)
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = new_requirement ? search_for(new_requirement) : []
@@ -484,7 +467,7 @@ module Molinillo
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
           state.activated.detach_vertex_named(state.name)
-          push_state_for_requirements(state.requirements.dup, false, state.activated)
+          push_state_for_requirements(state.requirements.dup, state.activated)
         else
           states.push(state).tap { activated.tag(state) }
         end
