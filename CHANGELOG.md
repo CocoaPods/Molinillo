@@ -8,7 +8,12 @@
 
 ##### Bug Fixes
 
-* None.  
+* Rewind to the nearest requirement for an unsatisfied spec, rather than the
+  first requirement. Fixes a non-idempotent lockfile generation issue, and some
+  erroneous version conflict errors.
+  [Grey Baker](https://github.com/greysteil)
+  [bundler/bundler#5569](https://github.com/bundler/bundler#5569)
+  [bundler/bundler#5633](https://github.com/bundler/bundler#5633)
 
 
 ## 0.5.7 (2017-03-03)
