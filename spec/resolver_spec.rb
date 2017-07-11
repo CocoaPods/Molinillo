@@ -94,6 +94,11 @@ module Molinillo
         return true
       end
 
+      if index_class == BerkshelfIndex && name == 'resolves a conflict which requires non-trivial unwinding'
+        # As above, except here the index is a large, and breaks on all Rubies
+        return true
+      end
+
       false
     end
 

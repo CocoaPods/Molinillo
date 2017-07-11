@@ -223,7 +223,7 @@ module Molinillo
       #   with the given name being activated.
       def requirement_for_existing_name(name)
         return nil unless activated.vertex_named(name).payload
-        states.find { |s| s.name == name }.requirement
+        states.select { |s| s.name == name && s.is_a?(DependencyState) }[-2].requirement
       end
 
       # @return [ResolutionState] the state whose `requirement` is the given
