@@ -19,15 +19,15 @@ module Molinillo
             name = hash['name']
             version = Gem::Version.new(hash['version'])
             dependency = index.specs[name].find { |s| s.version == version }
-            node = if parent
-                     graph.add_vertex(name, dependency).tap do |v|
-                       graph.add_edge(parent, v, dependency)
+            vertex = if parent
+                       graph.add_vertex(name, dependency).tap do |v|
+                         graph.add_edge(parent, v, dependency)
+                       end
+                     else
+                       graph.add_vertex(name, dependency, true)
                      end
-                   else
-                     graph.add_vertex(name, dependency, true)
-                   end
             hash['dependencies'].each do |dep|
-              add_dependencies_to_graph.call(graph, node, dep)
+              add_dependencies_to_graph.call(graph, vertex, dep)
             end
           end
           self.result = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
@@ -161,7 +161,7 @@ module Molinillo
         expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
       end
 
-      it 'only cleans up orphaned nodes after swapping' do
+      it 'only cleans up orphaned vertices after swapping' do
         index = TestIndex.new(
           'a' => [
             TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'z' => '= 2.0.0' }),

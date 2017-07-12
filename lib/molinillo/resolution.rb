@@ -311,10 +311,10 @@ module Molinillo
       # @return [void]
       def attempt_to_activate
         debug(depth) { 'Attempting to activate ' + possibility.to_s }
-        existing_node = activated.vertex_named(name)
-        if existing_node.payload
-          debug(depth) { "Found existing spec (#{existing_node.payload})" }
-          attempt_to_activate_existing_spec(existing_node)
+        existing_vertex = activated.vertex_named(name)
+        if existing_vertex.payload
+          debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
+          attempt_to_activate_existing_spec(existing_vertex)
         else
           attempt_to_activate_new_spec
         end
@@ -323,15 +323,15 @@ module Molinillo
       # Attempts to activate the current {#possibility} (given that it has
       # already been activated)
       # @return [void]
-      def attempt_to_activate_existing_spec(existing_node)
-        existing_spec = existing_node.payload
+      def attempt_to_activate_existing_spec(existing_vertex)
+        existing_spec = existing_vertex.payload
         if requirement_satisfied_by?(requirement, activated, existing_spec)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
         else
           return if attempt_to_swap_possibility
           create_conflict
-          debug(depth) { "Unsatisfied by existing spec (#{existing_node.payload})" }
+          debug(depth) { "Unsatisfied by existing spec (#{existing_vertex.payload})" }
           unwind_for_conflict
         end
       end
@@ -477,7 +477,7 @@ module Molinillo
       # If the {#specification_provider} says to
       # {SpecificationProvider#allow_missing?} that particular requirement, and
       # there are no possibilities for that requirement, then `state` is not
-      # pushed, and the node in {#activated} is removed, and we continue
+      # pushed, and the vertex in {#activated} is removed, and we continue
       # resolving the remaining requirements.
       # @param [DependencyState] state
       # @return [void]
