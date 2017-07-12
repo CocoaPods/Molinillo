@@ -169,7 +169,7 @@ module Molinillo
           requirements,
           graph,
           initial_requirement,
-          initial_requirement && search_for(initial_requirement),
+          possibilities_for_requirement(initial_requirement),
           0,
           {}
         )
@@ -314,7 +314,7 @@ module Molinillo
         existing_vertex = activated.vertex_named(name)
         if existing_vertex.payload
           debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
-          attempt_to_activate_existing_spec(existing_vertex)
+          attempt_to_activate_existing_spec(existing_vertex.payload)
         else
           attempt_to_activate_new_spec
         end
@@ -323,15 +323,14 @@ module Molinillo
       # Attempts to activate the current {#possibility} (given that it has
       # already been activated)
       # @return [void]
-      def attempt_to_activate_existing_spec(existing_vertex)
-        existing_spec = existing_vertex.payload
-        if requirement_satisfied_by?(requirement, activated, existing_spec)
+      def attempt_to_activate_existing_spec(spec)
+        if requirement_satisfied_by?(requirement, activated, spec)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
         else
           return if attempt_to_swap_possibility
           create_conflict
-          debug(depth) { "Unsatisfied by existing spec (#{existing_vertex.payload})" }
+          debug(depth) { "Unsatisfied by existing spec (#{spec})" }
           unwind_for_conflict
         end
       end
@@ -466,11 +465,30 @@ module Molinillo
         new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
-        possibilities = new_requirement ? search_for(new_requirement) : []
+        possibilities = possibilities_for_requirement(new_requirement)
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
           new_requirement, possibilities, depth, conflicts.dup
         )
+      end
+
+      # Checks a proposed requirement with any existing locked requirement
+      # before generating an array of possibilities for it.
+      # @param [Object] the proposed requirement
+      # @return [Array] possibilities
+      def possibilities_for_requirement(requirement)
+        return [] unless requirement
+        locked_requirement = locked_requirement_named(requirement.name)
+        all_possibilities = search_for(requirement)
+        return all_possibilities unless locked_requirement
+
+        # Longwinded way to build a possibilities array with either the locked
+        # requirement or nothing in it. Required, since the API for
+        # locked_requirement isn't guaranteed.
+        locked_possibility = all_possibilities.find do |possibility|
+          requirement_satisfied_by?(locked_requirement, activated, possibility)
+        end
+        locked_possibility ? [locked_possibility] : []
       end
 
       # Pushes a new {DependencyState}.
