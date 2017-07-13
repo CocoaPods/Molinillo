@@ -472,20 +472,47 @@ module Molinillo
         )
       end
 
-      # Checks a proposed requirement with any existing locked requirement
-      # before generating an array of possibilities for it.
+      # Combines a proposed new requirement with all existing requirements to
+      # generate an array of possibilities for it.
       # @param [Object] the proposed requirement
       # @return [Array] possibilities
       def possibilities_for_requirement(requirement)
         return [] unless requirement
-        locked_requirement = locked_requirement_named(requirement.name)
-        all_possibilities = search_for(requirement)
-        return all_possibilities unless locked_requirement
+
+        possibilities = search_for(requirement)
+        possibilities = filter_possibilities_by_existing_requirements(possibilities, requirement)
+        filter_possibilities_by_locked_requirement(possibilities, locked_requirement_named(requirement.name))
+      end
+
+      # Filters an array of possibilities for a requirement by all pre-existing
+      # requirements for the same dependency.
+      # @param [Array] possibilities
+      # @param [Object] the proposed requirement
+      # @return [Array] possibilities
+      def filter_possibilities_by_existing_requirements(possibilities, requirement)
+        existing_vertex = activated.vertex_named(requirement.name)
+        return possibilities unless existing_vertex && existing_vertex.payload
+
+        previous_possibility_sets = existing_vertex.requirements.map { |req| search_for(req) }
+        previous_possibility_sets.each do |possibility_set|
+          possibilities &= possibility_set
+        end
+
+        possibilities.empty? ? [existing_vertex.payload] : possibilities
+      end
+
+      # Filters an array of possibilities for a requirement by all pre-existing
+      # requirements for the same dependency.
+      # @param [Array] possibilities
+      # @param [Object] the locked requirement (or nil)
+      # @return [Array] possibilities
+      def filter_possibilities_by_locked_requirement(possibilities, locked_requirement)
+        return possibilities unless locked_requirement
 
         # Longwinded way to build a possibilities array with either the locked
         # requirement or nothing in it. Required, since the API for
         # locked_requirement isn't guaranteed.
-        locked_possibility = all_possibilities.find do |possibility|
+        locked_possibility = possibilities.find do |possibility|
           requirement_satisfied_by?(locked_requirement, activated, possibility)
         end
         locked_possibility ? [locked_possibility] : []

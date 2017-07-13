@@ -4,6 +4,11 @@
 
 ##### Enhancements
 
+* Check for existing requirements when generating a new state's possibilities
+  array, and reduce possibilities set accordingly. Speeds up resolution.
+  [Grey Baker](https://github.com/greysteil)
+  [#68](https://github.com/CocoaPods/Molinillo/pull/68)
+
 * Check for locked requirements when generating a new state's possibilities
   array, and reduce possibilities set accordingly. Reduces scope for erroneous
   VersionConflict errors.
