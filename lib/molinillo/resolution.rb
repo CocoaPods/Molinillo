@@ -192,10 +192,9 @@ module Molinillo
       # @return [Integer] The index to which the resolution should unwind in the
       #   case of conflict.
       def state_index_for_unwind
-        current_requirement = requirement
-        existing_requirement = requirement_for_existing_name(name)
+        existing_requirements = activated.vertex_named(name).requirements
         index = -1
-        [current_requirement, existing_requirement].each do |r|
+        existing_requirements.each do |r|
           until r.nil?
             current_state = find_state_for(r)
             if state_any?(current_state)
@@ -217,13 +216,6 @@ module Molinillo
         return unless index = @parents_of[requirement].last
         return unless parent_state = @states[index]
         parent_state.requirement
-      end
-
-      # @return [Object] the requirement that led to a version of a possibility
-      #   with the given name being activated.
-      def requirement_for_existing_name(name)
-        return nil unless activated.vertex_named(name).payload
-        states.find { |s| s.name == name }.requirement
       end
 
       # @return [ResolutionState] the state whose `requirement` is the given
@@ -498,7 +490,7 @@ module Molinillo
           possibilities &= possibility_set
         end
 
-        possibilities.empty? ? [existing_vertex.payload] : possibilities
+        possibilities
       end
 
       # Filters an array of possibilities for a requirement by all pre-existing
