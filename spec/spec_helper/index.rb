@@ -141,15 +141,30 @@ module Molinillo
                       requirement
                     end
 
-      existing_vertices = activated.vertices.values.select do |v|
-        v.name.split('/').first == requirement.name.split('/').first
-      end
-      existing = existing_vertices.map(&:payload).compact.first
-      if existing
-        existing.version == spec.version && requirement.requirement.satisfied_by?(spec.version)
+      shared_possibility_versions =
+        existing_possibility_versions_for_namespace(requirement, activated).
+        inject { |agg, set| agg & set }
+
+      if existing_possibility_versions_for_namespace(requirement, activated).any?
+        shared_possibility_versions.include?(spec.version) &&
+          requirement.requirement.satisfied_by?(spec.version)
       else
-        requirement.requirement.satisfied_by? spec.version
+        requirement.requirement.satisfied_by?(spec.version)
       end
+    end
+
+    private
+
+    def existing_possibility_versions_for_namespace(requirement, activated)
+      activated.vertices.values.map do |vertex|
+        next unless vertex.payload
+        next unless vertex.name.split('/').first == requirement.name.split('/').first
+        if vertex.payload.respond_to?(:possibilities)
+          vertex.payload.possibilities.map(&:version)
+        else
+          [vertex.payload.version]
+        end
+      end.compact
     end
   end
 

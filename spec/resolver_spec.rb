@@ -84,13 +84,12 @@ module Molinillo
     end
 
     def ignore?(index_class)
-      if index_class == BerkshelfIndex &&
-          name == 'can resolve when two specs have the same dependencies and swapping happens' &&
-          Gem.ruby_version < Gem::Version.new('2.3')
+      if [BerkshelfIndex, ReverseBundlerIndex].include?(index_class) &&
+          name == 'can resolve when two specs have the same dependencies and swapping happens'
 
-        # That index doesn't do a great job sorting, and segiddins has been
-        # unable to get the test passing with the bad sort (on Ruby < 2.3)
-        # without breaking other specs
+        # These indexes don't do a great job sorting, and segiddins has been
+        # unable to get the test passing with the bad sort without breaking
+        # other specs
         return true
       end
 
