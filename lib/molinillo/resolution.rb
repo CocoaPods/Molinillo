@@ -158,7 +158,10 @@ module Molinillo
       # @return [DependencyState] the initial state for the resolution
       def initial_state
         graph = DependencyGraph.new.tap do |dg|
-          original_requested.each { |r| dg.add_vertex(name_for(r), nil, true).tap { |v| v.explicit_requirements << r } }
+          original_requested.each do |requested|
+            vertex = dg.add_vertex(name_for(requested), nil, true)
+            vertex.explicit_requirements << requested
+          end
           dg.tag(:initial_state)
         end
 
@@ -169,7 +172,7 @@ module Molinillo
           requirements,
           graph,
           initial_requirement,
-          initial_requirement && search_for(initial_requirement),
+          possibilities_for_requirement(initial_requirement, graph),
           0,
           {}
         )
@@ -311,10 +314,10 @@ module Molinillo
       # @return [void]
       def attempt_to_activate
         debug(depth) { 'Attempting to activate ' + possibility.to_s }
-        existing_node = activated.vertex_named(name)
-        if existing_node.payload
-          debug(depth) { "Found existing spec (#{existing_node.payload})" }
-          attempt_to_activate_existing_spec(existing_node)
+        existing_vertex = activated.vertex_named(name)
+        if existing_vertex.payload
+          debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
+          attempt_to_activate_existing_spec(existing_vertex.payload)
         else
           attempt_to_activate_new_spec
         end
@@ -323,15 +326,14 @@ module Molinillo
       # Attempts to activate the current {#possibility} (given that it has
       # already been activated)
       # @return [void]
-      def attempt_to_activate_existing_spec(existing_node)
-        existing_spec = existing_node.payload
-        if requirement_satisfied_by?(requirement, activated, existing_spec)
+      def attempt_to_activate_existing_spec(spec)
+        if requirement_satisfied_by?(requirement, activated, spec)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
         else
           return if attempt_to_swap_possibility
           create_conflict
-          debug(depth) { "Unsatisfied by existing spec (#{existing_node.payload})" }
+          debug(depth) { "Unsatisfied by existing spec (#{spec})" }
           unwind_for_conflict
         end
       end
@@ -466,18 +468,36 @@ module Molinillo
         new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
         new_requirement = new_requirements.shift
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
-        possibilities = new_requirement ? search_for(new_requirement) : []
+        possibilities = possibilities_for_requirement(new_requirement)
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
           new_requirement, possibilities, depth, conflicts.dup
         )
       end
 
+      # Checks a proposed requirement with any existing locked requirement
+      # before generating an array of possibilities for it.
+      # @param [Object] the proposed requirement
+      # @return [Array] possibilities
+      def possibilities_for_requirement(requirement, activated = self.activated)
+        return [] unless requirement
+        locked_requirement = locked_requirement_named(name_for(requirement))
+        all_possibilities = search_for(requirement)
+        return all_possibilities unless locked_requirement
+
+        # Longwinded way to build a possibilities array with either the locked
+        # requirement or nothing in it. Required, since the API for
+        # locked_requirement isn't guaranteed.
+        all_possibilities.select do |possibility|
+          requirement_satisfied_by?(locked_requirement, activated, possibility)
+        end
+      end
+
       # Pushes a new {DependencyState}.
       # If the {#specification_provider} says to
       # {SpecificationProvider#allow_missing?} that particular requirement, and
       # there are no possibilities for that requirement, then `state` is not
-      # pushed, and the node in {#activated} is removed, and we continue
+      # pushed, and the vertex in {#activated} is removed, and we continue
       # resolving the remaining requirements.
       # @param [DependencyState] state
       # @return [void]

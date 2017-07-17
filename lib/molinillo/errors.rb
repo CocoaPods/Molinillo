@@ -41,11 +41,11 @@ module Molinillo
     attr_reader :dependencies
 
     # Initializes a new error with the given circular vertices.
-    # @param [Array<DependencyGraph::Vertex>] nodes the nodes in the dependency
+    # @param [Array<DependencyGraph::Vertex>] vertices the vertices in the dependency
     #   that caused the error
-    def initialize(nodes)
-      super "There is a circular dependency between #{nodes.map(&:name).join(' and ')}"
-      @dependencies = nodes.map(&:payload).to_set
+    def initialize(vertices)
+      super "There is a circular dependency between #{vertices.map(&:name).join(' and ')}"
+      @dependencies = vertices.map(&:payload).to_set
     end
   end
 

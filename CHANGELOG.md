@@ -4,7 +4,11 @@
 
 ##### Enhancements
 
-* None.  
+* Check for locked requirements when generating a new state's possibilities
+  array, and reduce possibilities set accordingly. Reduces scope for erroneous
+  VersionConflict errors.
+  [Grey Baker](https://github.com/greysteil)
+  [#67](https://github.com/CocoaPods/Molinillo/pull/67)
 
 ##### Bug Fixes
 

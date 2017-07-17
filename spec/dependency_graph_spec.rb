@@ -29,7 +29,7 @@ module Molinillo
       end
     end
 
-    describe 'detaching a node' do
+    describe 'detaching a vertex' do
       before do
         @graph = described_class.new
       end
