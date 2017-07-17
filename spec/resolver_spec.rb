@@ -46,12 +46,12 @@ module Molinillo
     end
 
     def run(index_class, context)
-      return if ignore?(index_class)
-
       test_case = self
 
       context.instance_eval do
         it test_case.name do
+          skip 'does not yet reliably pass' if test_case.ignore?(index_class)
+
           resolve = lambda do
             index = index_class.new(test_case.index.specs)
             resolver = Resolver.new(index, TestUI.new)
@@ -84,7 +84,7 @@ module Molinillo
     end
 
     def ignore?(index_class)
-      if [BerkshelfIndex, ReverseBundlerIndex].include?(index_class) &&
+      if [BerkshelfIndex, ReverseBundlerIndex, RandomSortIndex].include?(index_class) &&
           name == 'can resolve when two specs have the same dependencies and swapping happens'
 
         # These indexes don't do a great job sorting, and segiddins has been

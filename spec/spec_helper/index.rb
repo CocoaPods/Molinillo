@@ -22,7 +22,12 @@ module Molinillo
       self.specs = specs_by_name
     end
 
-    def requirement_satisfied_by?(requirement, _activated, spec)
+    def requirement_satisfied_by?(requirement, activated, spec)
+      if spec.version.prerelease? && !requirement.prerelease?
+        vertex = activated.vertex_named(spec.name)
+        return false if vertex.requirements.none?(&:prerelease?)
+      end
+
       case requirement
       when TestSpecification
         requirement.version == spec.version
@@ -34,10 +39,8 @@ module Molinillo
     def search_for(dependency)
       @search_for ||= {}
       @search_for[dependency] ||= begin
-        prerelease = dependency_prerelease?(dependency)
-        Array(specs[dependency.name]).select do |spec|
-          (prerelease ? true : !spec.version.prerelease?) &&
-            dependency.requirement.satisfied_by?(spec.version)
+        specs[dependency.name].select do |spec|
+          dependency.requirement.satisfied_by?(spec.version)
         end
       end
       @search_for[dependency].dup
@@ -55,17 +58,11 @@ module Molinillo
       dependencies.sort_by do |d|
         [
           activated.vertex_named(d.name).payload ? 0 : 1,
-          dependency_prerelease?(d) ? 0 : 1,
+          d.prerelease? ? 0 : 1,
           conflicts[d.name] ? 0 : 1,
           activated.vertex_named(d.name).payload ? 0 : search_for(d).count,
         ]
       end
-    end
-
-    private
-
-    def dependency_prerelease?(dependency)
-      dependency.prerelease?
     end
   end
 
@@ -126,14 +123,14 @@ module Molinillo
       dependencies.sort_by do |d|
         [
           activated.vertex_named(d.name).payload ? 0 : 1,
-          dependency_prerelease?(d) ? 0 : 1,
+          d.prerelease? ? 0 : 1,
           conflicts[d.name] ? 0 : 1,
           search_for(d).count,
         ]
       end
     end
 
-    def requirement_satisfied_by?(requirement, activated, spec)
+    def requirement_satisfied_by?(requirement, activated, spec) # rubocop:disable Metrics/CyclomaticComplexity
       requirement = case requirement
                     when TestSpecification
                       Gem::Dependency.new(requirement.name, requirement.version)
@@ -142,10 +139,14 @@ module Molinillo
                     end
 
       shared_possibility_versions =
-        existing_possibility_versions_for_namespace(requirement, activated).
-        inject { |agg, set| agg & set }
+        existing_possibility_versions_for_namespace(requirement, activated)
 
-      if existing_possibility_versions_for_namespace(requirement, activated).any?
+      if spec.version.prerelease? && !requirement.prerelease?
+        vertex = activated.vertex_named(spec.name)
+        return false if vertex.requirements.none?(&:prerelease?)
+      end
+
+      if !existing_possibility_versions_for_namespace(requirement, activated).empty?
         shared_possibility_versions.include?(spec.version) &&
           requirement.requirement.satisfied_by?(spec.version)
       else
@@ -156,15 +157,22 @@ module Molinillo
     private
 
     def existing_possibility_versions_for_namespace(requirement, activated)
-      activated.vertices.values.map do |vertex|
+      prerelease_requirement = requirement.prerelease?
+      existing = activated.vertices.values.map do |vertex|
         next unless vertex.payload
         next unless vertex.name.split('/').first == requirement.name.split('/').first
+
+        prerelease_requirement ||= vertex.requirements.any?(&:prerelease?)
+
         if vertex.payload.respond_to?(:possibilities)
           vertex.payload.possibilities.map(&:version)
         else
           [vertex.payload.version]
         end
-      end.compact
+      end.compact.flatten(1)
+      # must use #select! instead of #reject! for 1.8.7 compatibility
+      existing.select! { |possibility| !possibility.prerelease? } unless prerelease_requirement
+      existing
     end
   end
 
@@ -194,7 +202,7 @@ module Molinillo
     BundlerIndex,
     ReverseBundlerIndex,
     BundlerSingleAllNoPenaltyIndex,
-    # RandomSortIndex, this isn't yet always passing
+    RandomSortIndex,
     CocoaPodsIndex,
     BerkshelfIndex,
   ].freeze

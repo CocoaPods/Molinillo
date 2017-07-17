@@ -351,7 +351,15 @@ module Molinillo
           debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
           attempt_to_filter_existing_spec(existing_vertex)
         else
-          activate_new_spec
+          possibility.possibilities.select! do |possibility|
+            requirement_satisfied_by?(requirement, activated, possibility)
+          end
+          if possibility.latest_version.nil?
+            create_conflict
+            unwind_for_conflict
+          else
+            activate_new_spec
+          end
         end
       end
 
@@ -360,8 +368,7 @@ module Molinillo
       def attempt_to_filter_existing_spec(vertex)
         filtered_set = filtered_possibility_set(vertex)
         if !filtered_set.possibilities.empty? &&
-            (vertex.payload.dependencies == dependencies_for(possibility) ||
-             possibility_set_contains_prereleases(filtered_set))
+            (vertex.payload.dependencies == dependencies_for(possibility))
           activated.set_payload(name, filtered_set)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
@@ -388,21 +395,7 @@ module Molinillo
           vertex.requirements.uniq.all? { |req| requirement_satisfied_by?(req, activated, poss) }
         end
 
-        # TODO: ideally we should ensure the possibilities set is unique here
-
-        PossibilitySet.new(vertex.payload.dependencies, (filtered_old_values + filtered_new_values))
-      end
-
-      # Checks whether a `PossibilitySet` contains any pre-release versions. These
-      # need special treatment, as calling `search_for` on a previous, non-pre-release
-      # requirement won't have returned any pre-release versions
-      # @param [PossibilitySet] the possibility set to check
-      # @return [Boolean] whether or not the given `PossibilitySet` contains any
-      #   pre-release version
-      def possibility_set_contains_prereleases(possibility_set)
-        # TODO: figure out a way to check for pre-release versions that doesn't
-        # call `.version` on user-provided possibilities objects
-        possibility_set.possibilities.any? { |poss| poss.version.prerelease? }
+        PossibilitySet.new(vertex.payload.dependencies, filtered_old_values | filtered_new_values)
       end
 
       # @param [String] requirement_name the spec name to search for
