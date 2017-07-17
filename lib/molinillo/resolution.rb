@@ -288,7 +288,7 @@ module Molinillo
         vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
 
         activated_by_name = {}
-        activated.each { |v| activated_by_name[v.name] = v.payload if v.payload }
+        activated.each { |v| activated_by_name[v.name] = v.payload.latest_version if v.payload }
         conflicts[name] = Conflict.new(
           requirement,
           requirements,
