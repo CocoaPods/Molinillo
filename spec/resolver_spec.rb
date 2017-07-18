@@ -64,6 +64,16 @@ module Molinillo
       @conflicts ||= @fixture['conflicts'].to_set
     end
 
+    def self.all
+      @all ||= Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map { |fixture| TestCase.from_fixture(fixture) }
+    end
+
+    def resolve(index_class)
+      index = index_class.new(self.index.specs)
+      resolver = Resolver.new(index, TestUI.new)
+      resolver.resolve(requested, base)
+    end
+
     def run(index_class, context)
       test_case = self
 
@@ -78,7 +88,7 @@ module Molinillo
           end
 
           if test_case.conflicts.any?
-            expect { resolve.call }.to raise_error do |error|
+            expect { test_case.resolve(index_class) }.to raise_error do |error|
               expect(error).to be_a(ResolverError)
               names = case error
                       when CircularDependencyError
@@ -89,7 +99,7 @@ module Molinillo
               expect(names).to eq(test_case.conflicts)
             end
           else
-            result = resolve.call
+            result = test_case.resolve(index_class)
 
             pretty_dependencies = lambda do |dg|
               dg.vertices.values.map { |v| "#{v.name} (#{v.payload && v.payload.version})" }
@@ -142,10 +152,9 @@ module Molinillo
 
   describe Resolver do
     describe 'dependency resolution' do
-      test_cases = Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map { |fixture| TestCase.from_fixture(fixture) }
       INDICES.each do |index_class|
         context "with the #{index_class.to_s.split('::').last} index" do
-          test_cases.each { |tc| tc.run(index_class, self) }
+          TestCase.all.each { |tc| tc.run(index_class, self) }
         end
       end
     end
@@ -156,9 +165,44 @@ module Molinillo
       end
 
       it 'includes the source of a user-specified unsatisfied dependency' do
-        expect do
-          @resolver.resolve([Gem::Dependency.new('missing', '3.0')], DependencyGraph.new)
-        end.to raise_error(VersionConflict, /required by `user-specified dependency`/)
+        expect { @resolver.resolve([Gem::Dependency.new('missing', '3.0')], DependencyGraph.new) }.
+          to raise_error(VersionConflict) do |conflict|
+          expect(conflict.message).to eq <<-EOS.strip
+Unable to satisfy the following requirements:
+
+- `missing (= 3.0)` required by `user-specified dependency`
+          EOS
+          expect(conflict.message_with_trees).to eq <<-EOS.strip
+Molinillo could not find compatible versions for possibility named "missing":
+  In user-specified dependency:
+    missing (= 3.0)
+          EOS
+        end
+      end
+
+      it 'raises conflicts with requirement trees' do
+        test_case = TestCase.all.find { |tc| tc.name == 'yields conflicts if a child dependency is not resolved' }
+        index_class = TestIndex
+
+        expect { test_case.resolve(index_class) }.to raise_error(VersionConflict) do |conflict|
+          expect(conflict.message).to eq <<-EOS.strip
+Unable to satisfy the following requirements:
+
+- `json (>= 1.7.7)` required by `berkshelf (2.0.7)`
+- `json (<= 1.7.7, >= 1.4.4)` required by `chef (10.26)`
+          EOS
+          expect(conflict.message_with_trees(:version_for_spec => lambda(&:version))).to eq <<-EOS.strip
+Molinillo could not find compatible versions for possibility named "json":
+  In user-specified dependency:
+    chef_app_error (>= 0) was resolved to 1.0.0, which depends on
+      berkshelf (~> 2.0) was resolved to 2.0.7, which depends on
+        json (>= 1.7.7)
+
+    chef_app_error (>= 0) was resolved to 1.0.0, which depends on
+      chef (~> 10.26) was resolved to 10.26, which depends on
+        json (<= 1.7.7, >= 1.4.4)
+          EOS
+        end
       end
 
       it 'can handle when allow_missing? returns true for the only requirement' do
