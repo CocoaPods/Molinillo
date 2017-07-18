@@ -138,25 +138,17 @@ module Molinillo
                       requirement
                     end
 
-      shared_possibility_versions =
-        existing_possibility_versions_for_namespace(requirement, activated)
-
-      if spec.version.prerelease? && !requirement.prerelease?
-        vertex = activated.vertex_named(spec.name)
-        return false if vertex.requirements.none?(&:prerelease?)
-      end
-
-      if !existing_possibility_versions_for_namespace(requirement, activated).empty?
-        shared_possibility_versions.include?(spec.version) &&
-          requirement.requirement.satisfied_by?(spec.version)
-      else
-        requirement.requirement.satisfied_by?(spec.version)
-      end
+      version = spec.version
+      return false unless requirement.requirement.satisfied_by?(version)
+      shared_possibility_versions, prerelease_requirement = possibility_versions_for_root_name(requirement, activated)
+      return false if !shared_possibility_versions.empty? && !shared_possibility_versions.include?(version)
+      return false if version.prerelease? && !prerelease_requirement
+      true
     end
 
     private
 
-    def existing_possibility_versions_for_namespace(requirement, activated)
+    def possibility_versions_for_root_name(requirement, activated)
       prerelease_requirement = requirement.prerelease?
       existing = activated.vertices.values.map do |vertex|
         next unless vertex.payload
@@ -170,9 +162,8 @@ module Molinillo
           [vertex.payload.version]
         end
       end.compact.flatten(1)
-      # must use #select! instead of #reject! for 1.8.7 compatibility
-      existing.select! { |possibility| !possibility.prerelease? } unless prerelease_requirement
-      existing
+
+      [existing, prerelease_requirement]
     end
   end
 
