@@ -285,15 +285,17 @@ module Molinillo
           requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements
         end
         requirements[name_for_locking_dependency_source] = [locked_requirement] if locked_requirement
-        vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
+        vertex.incoming_edges.each do |edge|
+          (requirements[edge.origin.payload.latest_version] ||= []).unshift(edge.requirement)
+        end
 
         activated_by_name = {}
         activated.each { |v| activated_by_name[v.name] = v.payload.latest_version if v.payload }
         conflicts[name] = Conflict.new(
           requirement,
           requirements,
-          vertex.payload,
-          possibility,
+          vertex.payload && vertex.payload.latest_version,
+          possibility && possibility.latest_version,
           locked_requirement,
           requirement_trees,
           activated_by_name
@@ -351,10 +353,14 @@ module Molinillo
           debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
           attempt_to_filter_existing_spec(existing_vertex)
         else
-          possibility.possibilities.select! do |possibility|
-            requirement_satisfied_by?(requirement, activated, possibility)
+          latest = possibility.latest_version
+          # use reject!(!satisfied) for 1.8.7 compatibility
+          possibility.possibilities.reject! do |possibility|
+            !requirement_satisfied_by?(requirement, activated, possibility)
           end
           if possibility.latest_version.nil?
+            # ensure there's a possibility for better error messages
+            possibility.possibilities << latest if latest
             create_conflict
             unwind_for_conflict
           else
