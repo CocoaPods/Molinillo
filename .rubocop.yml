@@ -1,4 +1,6 @@
-inherit_from: .rubocop_cocoapods.yml
+inherit_from:
+- .rubocop_cocoapods.yml
+- .rubocop_todo.yml
 
 Metrics/LineLength:
   Max: 120
