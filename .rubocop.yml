@@ -33,6 +33,9 @@ Lint/UnusedMethodArgument:
 Style/FrozenStringLiteralComment:
   EnforcedStyle: always
 
+Layout/IndentHeredoc:
+  Enabled: false
+
 # CocoaPods default overrides
 
 Metrics/CyclomaticComplexity:
