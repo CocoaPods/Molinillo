@@ -19,6 +19,10 @@
   [Grey Baker](https://github.com/greysteil)
   [#67](https://github.com/CocoaPods/Molinillo/pull/67)
 
+* Add `VersionConflict#message_with_trees` for consumers who prefer a more verbose
+  conflict message that includes full requirement trees for all conflicts.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Consider additional (binding) requirements that caused a conflict when
