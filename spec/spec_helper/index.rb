@@ -8,13 +8,17 @@ module Molinillo
     include SpecificationProvider
 
     def self.from_fixture(fixture_name)
-      File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
-        sorted_specs = JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
+      new(TestIndex.specs_from_fixture(fixture_name))
+    end
+
+    def self.specs_from_fixture(fixture_name)
+      @specs_from_fixture ||= {}
+      @specs_from_fixture[fixture_name] ||= File.open(FIXTURE_INDEX_DIR + (fixture_name + '.json'), 'r') do |fixture|
+        JSON.load(fixture).reduce(Hash.new([])) do |specs_by_name, (name, versions)|
           specs_by_name.tap do |specs|
             specs[name] = versions.map { |s| TestSpecification.new s }.sort_by(&:version)
           end
         end
-        return new(sorted_specs)
       end
     end
 
