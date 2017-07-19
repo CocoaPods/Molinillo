@@ -5,44 +5,63 @@ module Molinillo
   FIXTURE_CASE_DIR = FIXTURE_DIR + 'case'
 
   class TestCase
-    attr_accessor :name, :requested, :base, :conflicts, :result, :index
+    attr_accessor :name
 
-    def initialize(fixture_path)
-      File.open(fixture_path) do |fixture|
-        JSON.load(fixture).tap do |test_case|
-          self.name = test_case['name']
-          self.index = TestIndex.from_fixture(test_case['index'] || 'awesome')
-          self.requested = test_case['requested'].map do |(name, reqs)|
-            Gem::Dependency.new name.delete("\x01"), reqs.split(',').map(&:chomp)
-          end
-          add_dependencies_to_graph = lambda do |graph, parent, hash|
-            name = hash['name']
-            version = Gem::Version.new(hash['version'])
-            dependency = index.specs[name].find { |s| s.version == version }
-            vertex = if parent
-                       graph.add_vertex(name, dependency).tap do |v|
-                         graph.add_edge(parent, v, dependency)
-                       end
-                     else
-                       graph.add_vertex(name, dependency, true)
-                     end
-            hash['dependencies'].each do |dep|
-              add_dependencies_to_graph.call(graph, vertex, dep)
-            end
-          end
-          self.result = test_case['resolved'].reduce(DependencyGraph.new) do |graph, r|
-            graph.tap do |g|
-              add_dependencies_to_graph.call(g, nil, r)
-            end
-          end
-          self.base = test_case['base'].reduce(DependencyGraph.new) do |graph, r|
-            graph.tap do |g|
-              add_dependencies_to_graph.call(g, nil, r)
-            end
-          end
-          self.conflicts = test_case['conflicts'].to_set
+    def self.from_fixture(fixture_path)
+      fixture = File.open(fixture_path) { |f| JSON.load(f) }
+      new(fixture)
+    end
+
+    def initialize(fixture)
+      @fixture = fixture
+      self.name = fixture['name']
+    end
+
+    def index
+      @index ||= TestIndex.from_fixture(@fixture['index'] || 'awesome')
+    end
+
+    def requested
+      @requested ||= @fixture['requested'].map do |(name, reqs)|
+        Gem::Dependency.new name.delete("\x01"), reqs.split(',').map(&:chomp)
+      end
+    end
+
+    def add_dependencies_to_graph(graph, parent, hash, all_parents = Set.new)
+      name = hash['name']
+      version = Gem::Version.new(hash['version'])
+      dependency = index.specs[name].find { |s| s.version == version }
+      vertex = if parent
+                 graph.add_vertex(name, dependency).tap do |v|
+                   graph.add_edge(parent, v, dependency)
+                 end
+               else
+                 graph.add_vertex(name, dependency, true)
+               end
+      return unless all_parents.add?(vertex)
+      hash['dependencies'].each do |dep|
+        add_dependencies_to_graph(graph, vertex, dep, all_parents)
+      end
+    end
+
+    def result
+      @result ||= @fixture['resolved'].reduce(DependencyGraph.new) do |graph, r|
+        graph.tap do |g|
+          add_dependencies_to_graph(g, nil, r)
         end
       end
+    end
+
+    def base
+      @base ||= @fixture['base'].reduce(DependencyGraph.new) do |graph, r|
+        graph.tap do |g|
+          add_dependencies_to_graph(g, nil, r)
+        end
+      end
+    end
+
+    def conflicts
+      @conflicts ||= @fixture['conflicts'].to_set
     end
 
     def run(index_class, context)
@@ -123,7 +142,7 @@ module Molinillo
 
   describe Resolver do
     describe 'dependency resolution' do
-      test_cases = Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map { |fixture| TestCase.new(fixture) }
+      test_cases = Dir.glob(FIXTURE_CASE_DIR + '**/*.json').map { |fixture| TestCase.from_fixture(fixture) }
       INDICES.each do |index_class|
         context "with the #{index_class.to_s.split('::').last} index" do
           test_cases.each { |tc| tc.run(index_class, self) }
