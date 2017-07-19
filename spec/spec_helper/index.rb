@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module Molinillo
   FIXTURE_DIR = Pathname.new('spec/resolver_integration_specs')
   FIXTURE_INDEX_DIR = FIXTURE_DIR + 'index'

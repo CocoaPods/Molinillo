@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module Molinillo
   class DependencyGraph
     # A vertex in a {DependencyGraph} that encapsulates a {#name} and a

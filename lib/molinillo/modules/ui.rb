@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module Molinillo
   # Conveys information about the resolution process to a user.
   module UI
