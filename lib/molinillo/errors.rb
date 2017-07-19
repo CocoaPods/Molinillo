@@ -56,8 +56,13 @@ module Molinillo
     #   resolution to fail
     attr_reader :conflicts
 
+    # @return [SpecificationProvider] the specification provider used during
+    #   resolution
+    attr_reader :specification_provider
+
     # Initializes a new error with the given version conflicts.
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
+    # @param [SpecificationProvider] specification_provider see {#specification_provider}
     def initialize(conflicts, specification_provider)
       pairs = []
       conflicts.values.flatten.map(&:requirements).flatten.each do |conflicting|
@@ -75,11 +80,20 @@ module Molinillo
       @specification_provider = specification_provider
     end
 
-    attr_reader :specification_provider
-
     require 'molinillo/delegates/specification_provider'
     include Delegates::SpecificationProvider
 
+    # @return [String] An error message that includes requirement trees,
+    #   which is much more detailed & customizable than the default message
+    # @param [Hash] opts the options to create a message with.
+    # @option opts [String] :solver_name The user-facing name of the solver
+    # @option opts [String] :possibility_type The generic name of a possibility
+    # @option opts [Proc] :reduce_trees A proc that reduced the list of requirement trees
+    # @option opts [Proc] :printable_requirement A proc that pretty-prints requirements
+    # @option opts [Proc] :additional_message_for_conflict A proc that appends additional
+    #   messages for each conflict
+    # @option opts [Proc] :version_for_spec A proc that returns the version number for a
+    #   possibility
     def message_with_trees(opts = {})
       solver_name = opts.delete(:solver_name) { self.class.name.split('::').first }
       possibility_type = opts.delete(:possibility_type) { 'possibility named' }
