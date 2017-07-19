@@ -82,12 +82,6 @@ module Molinillo
         it test_case.name do
           skip 'does not yet reliably pass' if test_case.ignore?(index_class)
 
-          resolve = lambda do
-            index = index_class.new(test_case.index.specs)
-            resolver = Resolver.new(index, TestUI.new)
-            resolver.resolve(test_case.requested, test_case.base)
-          end
-
           if test_case.conflicts.any?
             expect { test_case.resolve(index_class) }.to raise_error do |error|
               expect(error).to be_a(ResolverError)
