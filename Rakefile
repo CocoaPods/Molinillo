@@ -93,7 +93,6 @@ begin
   #-- Default ----------------------------------------------------------------#
 
   task :default => default_tasks
-
 rescue LoadError => e
   $stderr.puts "\033[0;31m" \
     '[!] Some Rake tasks haven been disabled because the environment' \
