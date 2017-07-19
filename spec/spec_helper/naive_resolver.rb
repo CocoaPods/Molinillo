@@ -17,7 +17,7 @@ module Molinillo
         break unless vertex
         possibilities = possibilities_by_level[level] ||= index.search_for(Gem::Dependency.new(vertex.name, '>= 0.0.0-a'))
         possibilities.select! do |spec|
-          vertex.requirements.all? { |r| r.requirement.satisfied_by?(spec.version) && (!spec.version.prerelease? || index.send(:dependency_prerelease?, r)) } &&
+          vertex.requirements.all? { |r| r.requirement.satisfied_by?(spec.version) && (!spec.version.prerelease? || r.prerelease?) } &&
             spec.dependencies.all? { |d| v = activated.vertex_named(d.name); !v || !v.payload || d.satisfied_by?(v.payload.version) }
         end
         warn "level = #{level} possibilities = #{possibilities.map(&:to_s)} requirements = #{vertex.requirements.map(&:to_s)}"

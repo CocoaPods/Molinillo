@@ -45,7 +45,7 @@ module Molinillo
     #   that caused the error
     def initialize(vertices)
       super "There is a circular dependency between #{vertices.map(&:name).join(' and ')}"
-      @dependencies = vertices.map(&:payload).to_set
+      @dependencies = vertices.map { |vertex| vertex.payload.possibilities.last }.to_set
     end
   end
 

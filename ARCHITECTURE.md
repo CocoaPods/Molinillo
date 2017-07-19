@@ -18,19 +18,22 @@ This stack-based approach is used because backtracking (also known as *unwinding
 2. The client calls `resolve` with an array of user-requested dependencies and an optional 'locking' `DependencyGraph`
 3. The `Resolver` creates a new `Resolution` with those four user-specified parameters and calls `resolve` on it
 4. The `Resolution` creates an `initial_state`, which takes the user-requested dependencies and puts them into a `DependencyState`
-  - In the process of creating the state, the `SpecificationProvider` is asked to sort the dependencies and return all the `possibilities` for the `initial_requirement`
+  - In the process of creating the state, the `SpecificationProvider` is asked to sort the dependencies and return all the `possibilities` for the `initial_requirement` (taking into account whether the dependency is `locked`). These possibilities are then grouped into `PossibilitySet`s, with each set representing a group of versions for the dependency which share the same sub-dependency requirements
   - A `DependencyGraph` is created that has all of these requirements point to `root_vertices`
 5. The resolution process now enters its main loop, which continues as long as there is a current `state` to process, and the current state has requirements left to process
 6. `UI#indicate_progress` is called to allow the client to report progress
-7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a single possibility for that dependency
+7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a `PossibilitySet` for that dependency
 8. Process the topmost state on the stack
-9. If there's a possibility for the state, `attempt_to_activate` it (jump to #11)
-10. If there's no possibility, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until there's a `DependencyState` with a `possibility` atop the stack
-11. Check if there is an existing vertex in the `activated` dependency graph with the name of the current `requirement`
-12. If so, `attempt_to_activate_existing_spec` (jump to #14). If not, `attempt_to_activate_new_spec`
-13. Check if there is a `locked` dependency with the current dependency's name. If there is, verify that both the locked dependency and the current `requirement` are satisfied with the current `possibility`. If either is not satisfied, `create_conflict` and `unwind_for_conflict`
-14. In either case, if the requirement is satisfied by the existing spec (if existing), or the new spec (if not), a new state is pushed with the now-activated `possibility`'s own dependencies. Go to #5
+9. If there is a non-empty `PossibilitySet` for the state, `attempt_to_activate` it (jump to #11)
+10. If there is no non-empty `PossibilitySet` for the state, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until there's a `DependencyState` with a non-empty `PossibilitySet` atop the stack
+11. Check if there is an existing vertex in the `activated` dependency graph for the dependency this state's `requirement` relates to
+12. If there is no existing vertex in the `activated` dependency graph for the dependency this state's `requirement` relates to, `activate_new_spec`. This creates a new vertex in the `activated` dependency graph, with it's payload set to the possibility's `PossibilitySet`. It also pushes a new `DependencyState`, with the now-activated `PossibilitySet`'s own dependencies. Go to #6
+13. If there is an existing, `activated` vertex for the dependency, `attempt_to_filter_existing_spec`
+  - This filters the contents of the existing vertex's `PossibilitySet` by the current state's `requirement`
+  - If any possibilities remain within the `PossibilitySet`, it updates the activated vertex's payload with the new, filtered state and pushes a new `DependencyState`
+  - If no possibilities remain within the `PossibilitySet` after filtering, or if the current state's `PossibilitySet` had a different set of sub-dependecy requirements to the existing vertex's `PossibilitySet`, `create_conflict` and `unwind_for_conflict`, back to the last `DependencyState` that has a chance to not generate a conflict. Go to #6
 15. Terminate with the topmost state's dependency graph when there are no more requirements left
+16. For each vertex with a payload of allowable versions for this resolution (i.e., a `PossibilitySet`), pick a single specific version.
 
 ## Specification Provider
 

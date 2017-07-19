@@ -24,6 +24,25 @@ module Molinillo
         :activated_by_name
       )
 
+      # A collection of possibility states that share the same dependencies
+      # @attr [Array] dependencies the dependencies for this set of possibilities
+      # @attr [Array] possibilities the possibilities
+      PossibilitySet = Struct.new(:dependencies, :possibilities)
+
+      class PossibilitySet
+        # String representation of the possibility set, for debugging
+        def to_s
+          "[#{possibilities.join(', ')}]"
+        end
+
+        # @return [Object] most up-to-date dependency in the possibility set
+        def latest_version
+          # TODO: sorting by version here would be a lot better than relying on
+          # possibilities having been inserted in the right order...
+          possibilities.last
+        end
+      end
+
       # @return [SpecificationProvider] the provider that knows about
       #   dependencies, requirements, specifications, versions, etc.
       attr_reader :specification_provider
@@ -78,7 +97,7 @@ module Molinillo
           process_topmost_state
         end
 
-        activated.freeze
+        resolve_activated_specs
       ensure
         end_resolution
       end
@@ -107,6 +126,19 @@ module Molinillo
 
         debug { "Starting resolution (#{@started_at})\nUser-requested dependencies: #{original_requested}" }
         resolver_ui.before_resolution
+      end
+
+      def resolve_activated_specs
+        activated.vertices.each do |_, vertex|
+          next unless vertex.payload
+
+          latest_version = vertex.payload.possibilities.reverse_each.find do |possibility|
+            vertex.requirements.uniq.all? { |req| requirement_satisfied_by?(req, activated, possibility) }
+          end
+
+          activated.set_payload(vertex.name, latest_version)
+        end
+        activated.freeze
       end
 
       # Ends the resolution process
@@ -253,15 +285,17 @@ module Molinillo
           requirements[name_for_explicit_dependency_source] = vertex.explicit_requirements
         end
         requirements[name_for_locking_dependency_source] = [locked_requirement] if locked_requirement
-        vertex.incoming_edges.each { |edge| (requirements[edge.origin.payload] ||= []).unshift(edge.requirement) }
+        vertex.incoming_edges.each do |edge|
+          (requirements[edge.origin.payload.latest_version] ||= []).unshift(edge.requirement)
+        end
 
         activated_by_name = {}
-        activated.each { |v| activated_by_name[v.name] = v.payload if v.payload }
+        activated.each { |v| activated_by_name[v.name] = v.payload.latest_version if v.payload }
         conflicts[name] = Conflict.new(
           requirement,
           requirements,
-          vertex.payload,
-          possibility,
+          vertex.payload && vertex.payload.latest_version,
+          possibility && possibility.latest_version,
           locked_requirement,
           requirement_trees,
           activated_by_name
@@ -317,112 +351,57 @@ module Molinillo
         existing_vertex = activated.vertex_named(name)
         if existing_vertex.payload
           debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
-          attempt_to_activate_existing_spec(existing_vertex.payload)
+          attempt_to_filter_existing_spec(existing_vertex)
         else
-          attempt_to_activate_new_spec
+          latest = possibility.latest_version
+          # use reject!(!satisfied) for 1.8.7 compatibility
+          possibility.possibilities.reject! do |possibility|
+            !requirement_satisfied_by?(requirement, activated, possibility)
+          end
+          if possibility.latest_version.nil?
+            # ensure there's a possibility for better error messages
+            possibility.possibilities << latest if latest
+            create_conflict
+            unwind_for_conflict
+          else
+            activate_new_spec
+          end
         end
       end
 
-      # Attempts to activate the current {#possibility} (given that it has
-      # already been activated)
+      # Attempts to update the existing vertex's `PossibilitySet` with a filtered version
       # @return [void]
-      def attempt_to_activate_existing_spec(spec)
-        if requirement_satisfied_by?(requirement, activated, spec)
+      def attempt_to_filter_existing_spec(vertex)
+        filtered_set = filtered_possibility_set(vertex)
+        if !filtered_set.possibilities.empty? &&
+            (vertex.payload.dependencies == dependencies_for(possibility.latest_version))
+          activated.set_payload(name, filtered_set)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
         else
-          return if attempt_to_swap_possibility
           create_conflict
-          debug(depth) { "Unsatisfied by existing spec (#{spec})" }
+          debug(depth) { "Unsatisfied by existing spec (#{vertex.payload})" }
           unwind_for_conflict
         end
       end
 
-      # Attempts to swp the current {#possibility} with the already-activated
-      # spec with the given name
-      # @return [Boolean] Whether the possibility was swapped into {#activated}
-      def attempt_to_swap_possibility
-        activated.tag(:swap)
-        vertex = activated.vertex_named(name)
-        activated.set_payload(name, possibility)
-        if !vertex.requirements.
-           all? { |r| requirement_satisfied_by?(r, activated, possibility) } ||
-            !new_spec_satisfied?
-          activated.rewind_to(:swap)
-          return
+      # Generates a filtered version of the existing vertex's `PossibilitySet` using the
+      # current state's `requirement`
+      # @param [Object] existing vertex
+      # @return [PossibilitySet] filtered possibility set
+      def filtered_possibility_set(vertex)
+        # Note: we can't just look at the intersection of `vertex.payload.possibilities`
+        # and `possibility.possibilities`, because if one of our requirements contains
+        # a prerelease version the associated prerelease versions will only appear in
+        # one set (but may match all requirements)
+        filtered_old_values = vertex.payload.possibilities.select do |poss|
+          requirement_satisfied_by?(requirement, activated, poss)
         end
-        fixup_swapped_children(vertex)
-        activate_spec
-      end
-
-      # Ensures there are no orphaned successors to the given {vertex}.
-      # @param [DependencyGraph::Vertex] vertex the vertex to fix up.
-      # @return [void]
-      def fixup_swapped_children(vertex) # rubocop:disable Metrics/CyclomaticComplexity
-        payload = vertex.payload
-        deps = dependencies_for(payload).group_by(&method(:name_for))
-        vertex.outgoing_edges.each do |outgoing_edge|
-          requirement = outgoing_edge.requirement
-          parent_index = @parents_of[requirement].last
-          succ = outgoing_edge.destination
-          matching_deps = Array(deps[succ.name])
-          dep_matched = matching_deps.include?(requirement)
-
-          # only push the current index when it was originally required by the
-          # same named spec
-          if parent_index && states[parent_index].name == name
-            @parents_of[requirement].push(states.size - 1)
-          end
-
-          if matching_deps.empty? && !succ.root? && succ.predecessors.to_a == [vertex]
-            debug(depth) { "Removing orphaned spec #{succ.name} after swapping #{name}" }
-            succ.requirements.each { |r| @parents_of.delete(r) }
-
-            removed_names = activated.detach_vertex_named(succ.name).map(&:name)
-            requirements.delete_if do |r|
-              # the only removed vertices are those with no other requirements,
-              # so it's safe to delete only based upon name here
-              removed_names.include?(name_for(r))
-            end
-          elsif !dep_matched
-            debug(depth) { "Removing orphaned dependency #{requirement} after swapping #{name}" }
-            # also reset if we're removing the edge, but only if its parent has
-            # already been fixed up
-            @parents_of[requirement].push(states.size - 1) if @parents_of[requirement].empty?
-
-            activated.delete_edge(outgoing_edge)
-            requirements.delete(requirement)
-          end
-        end
-      end
-
-      # Attempts to activate the current {#possibility} (given that it hasn't
-      # already been activated)
-      # @return [void]
-      def attempt_to_activate_new_spec
-        if new_spec_satisfied?
-          activate_spec
-        else
-          create_conflict
-          unwind_for_conflict
-        end
-      end
-
-      # @return [Boolean] whether the current spec is satisfied as a new
-      # possibility.
-      def new_spec_satisfied?
-        unless requirement_satisfied_by?(requirement, activated, possibility)
-          debug(depth) { 'Unsatisfied by requested spec' }
-          return false
+        filtered_new_values = possibility.possibilities.select do |poss|
+          vertex.requirements.uniq.all? { |req| requirement_satisfied_by?(req, activated, poss) }
         end
 
-        locked_requirement = locked_requirement_named(name)
-
-        locked_spec_satisfied = !locked_requirement ||
-          requirement_satisfied_by?(locked_requirement, activated, possibility)
-        debug(depth) { 'Unsatisfied by locked spec' } unless locked_spec_satisfied
-
-        locked_spec_satisfied
+        PossibilitySet.new(vertex.payload.dependencies, filtered_old_values | filtered_new_values)
       end
 
       # @param [String] requirement_name the spec name to search for
@@ -436,7 +415,7 @@ module Molinillo
       # Add the current {#possibility} to the dependency graph of the current
       # {#state}
       # @return [void]
-      def activate_spec
+      def activate_new_spec
         conflicts.delete(name)
         debug(depth) { "Activated #{name} at #{possibility}" }
         activated.set_payload(name, possibility)
@@ -444,14 +423,14 @@ module Molinillo
       end
 
       # Requires the dependencies that the recently activated spec has
-      # @param [Object] activated_spec the specification that has just been
+      # @param [Object] activated_possibility the PossibilitySet that has just been
       #   activated
       # @return [void]
-      def require_nested_dependencies_for(activated_spec)
-        nested_dependencies = dependencies_for(activated_spec)
+      def require_nested_dependencies_for(possibility_set)
+        nested_dependencies = dependencies_for(possibility_set.latest_version)
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
         nested_dependencies.each do |d|
-          activated.add_child_vertex(name_for(d), nil, [name_for(activated_spec)], d)
+          activated.add_child_vertex(name_for(d), nil, [name_for(possibility_set.latest_version)], d)
           parent_index = states.size - 1
           parents = @parents_of[d]
           parents << parent_index if parents.empty?
@@ -481,16 +460,48 @@ module Molinillo
       # @return [Array] possibilities
       def possibilities_for_requirement(requirement, activated = self.activated)
         return [] unless requirement
-        locked_requirement = locked_requirement_named(name_for(requirement))
+        if locked_requirement_named(name_for(requirement))
+          return locked_requirement_possibility_set(requirement, activated)
+        end
+
+        group_possibilities(search_for(requirement))
+      end
+
+      # @param [Object] the proposed requirement
+      # @return [Array] possibility set containing only the locked requirement, if any
+      def locked_requirement_possibility_set(requirement, activated = self.activated)
         all_possibilities = search_for(requirement)
-        return all_possibilities unless locked_requirement
+        locked_requirement = locked_requirement_named(name_for(requirement))
 
         # Longwinded way to build a possibilities array with either the locked
         # requirement or nothing in it. Required, since the API for
         # locked_requirement isn't guaranteed.
-        all_possibilities.select do |possibility|
+        locked_possibilities = all_possibilities.select do |possibility|
           requirement_satisfied_by?(locked_requirement, activated, possibility)
         end
+
+        group_possibilities(locked_possibilities)
+      end
+
+      # Build an array of PossibilitySets, with each element representing a group of
+      # dependency versions that all have the same sub-dependency version constraints.
+      # @param [Array] an array of possibilities
+      # @return [Array] an array of possibility sets
+      def group_possibilities(possibilities)
+        possibility_sets = []
+        possibility_sets_index = {}
+
+        possibilities.reverse_each do |possibility|
+          dependencies = dependencies_for(possibility)
+          if index = possibility_sets_index[dependencies]
+            possibility_sets[index].possibilities.unshift(possibility)
+          else
+            possibility_sets << PossibilitySet.new(dependencies, [possibility])
+            possibility_sets_index[dependencies] = possibility_sets.count - 1
+          end
+        end
+
+        possibility_sets.reverse
       end
 
       # Pushes a new {DependencyState}.

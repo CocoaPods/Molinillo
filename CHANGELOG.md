@@ -4,6 +4,15 @@
 
 ##### Enhancements
 
+* Speed up dependency resolution by considering multiple possible versions of a
+  dependency at once, grouped its sub-dependencies. Groups are then filtered as
+  additional requirements are introduced. If a group's sub-dependencies cause
+  conflicts the entire group can be discarded, which reduces the number of
+  possibilities that have to be tested to find a resolution.
+  [Grey Baker](https://github.com/greysteil)
+  [Samuel Giddins](https://github.com/segiddins)
+  [#69](https://github.com/CocoaPods/Molinillo/pull/69)
+
 * Check for locked requirements when generating a new state's possibilities
   array, and reduce possibilities set accordingly. Reduces scope for erroneous
   VersionConflict errors.
