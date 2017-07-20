@@ -25,7 +25,9 @@ This stack-based approach is used because backtracking (also known as *unwinding
 7. If the current state is a `DependencyState`, we have it pop off a `PossibilityState` that encapsulates a `PossibilitySet` for that dependency
 8. Process the topmost state on the stack
 9. If there is a non-empty `PossibilitySet` for the state, `attempt_to_activate` it (jump to #11)
-10. If there is no non-empty `PossibilitySet` for the state, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict` until there's a `DependencyState` with a non-empty `PossibilitySet` atop the stack
+10. If there is no non-empty `PossibilitySet` for the state, `create_conflict` if the state is a `PossibilityState`, and then `unwind_for_conflict`
+  - `create_conflict` builds a `Conflict` object, with details of all of the requirements for the given dependency, and adds it to a hash of conflicts stored on the `state`, indexed by the name of the dependency
+  - `unwind_for_conflict` loops through all the conflicts on the `state`, looking for a state it can rewind to that might avoid that conflict. If no such state exists, it raises a VersionConflict error. Otherwise, it takes the most recent state with a chance to avoid the current conflicts and rewinds to it (go to #6)
 11. Check if there is an existing vertex in the `activated` dependency graph for the dependency this state's `requirement` relates to
 12. If there is no existing vertex in the `activated` dependency graph for the dependency this state's `requirement` relates to, `activate_new_spec`. This creates a new vertex in the `activated` dependency graph, with it's payload set to the possibility's `PossibilitySet`. It also pushes a new `DependencyState`, with the now-activated `PossibilitySet`'s own dependencies. Go to #6
 13. If there is an existing, `activated` vertex for the dependency, `attempt_to_filter_existing_spec`
