@@ -228,12 +228,12 @@ module Molinillo
       #   case of conflict.
       def state_index_for_unwind
         index = -1
+        maximal_index = states.size - 2
         conflicts.each do |dependency_name, conflict|
           next unless activated.vertex_named(dependency_name)
-          current_requirement = conflict.requirement
-          existing_requirement = requirement_for_existing_name(dependency_name)
-          [current_requirement, existing_requirement].each do |r|
+          conflict.requirements.values.flatten(1).uniq.each do |r|
             until r.nil?
+              return index if index == maximal_index
               current_state = find_state_for(r)
               if state_any?(current_state)
                 current_index = states.index(current_state)
@@ -255,13 +255,6 @@ module Molinillo
         return unless index = @parents_of[requirement].last
         return unless parent_state = @states[index]
         parent_state.requirement
-      end
-
-      # @return [Object] the requirement that led to a version of a possibility
-      #   with the given name being activated.
-      def requirement_for_existing_name(name)
-        return nil unless activated.vertex_named(name).payload
-        states.find { |s| s.name == name }.requirement
       end
 
       # @return [ResolutionState] the state whose `requirement` is the given
