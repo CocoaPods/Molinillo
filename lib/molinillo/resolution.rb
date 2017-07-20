@@ -15,6 +15,8 @@ module Molinillo
       # @attr [Array<Array<Object>>] requirement_trees the different requirement
       #   trees that led to every requirement for the conflicting name.
       # @attr [{String=>Object}] activated_by_name the already-activated specs.
+      # @attr [Object] root_error an error that has occurred during resolution, and
+      #    will be raised at the end of it if no resolution is found.
       Conflict = Struct.new(
         :requirement,
         :requirements,
@@ -22,7 +24,8 @@ module Molinillo
         :possibility_set,
         :locked_requirement,
         :requirement_trees,
-        :activated_by_name
+        :activated_by_name,
+        :root_error
       )
 
       class Conflict
@@ -220,6 +223,9 @@ module Molinillo
           create_conflict if state.is_a? PossibilityState
           unwind_for_conflict until possibility && state.is_a?(DependencyState)
         end
+      rescue CircularDependencyError => root_error
+        create_conflict(root_error)
+        unwind_for_conflict
       end
 
       # @return [Object] the current possibility that the resolution is trying
@@ -266,7 +272,10 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
-          raise VersionConflict.new(c, specification_provider) unless state
+          unless state
+            error = c.values.map(&:root_error).compact.first
+            raise error || VersionConflict.new(c, specification_provider)
+          end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           filter_possibilities_after_unwind(details_for_unwind)
@@ -437,6 +446,7 @@ module Molinillo
         # then the only two requirements we need to consider are the initial one
         # (where the dependency's version was first chosen) and the last
         if binding_requirement_in_set?(nil, possible_binding_requirements, possibilities)
+          return possible_binding_requirements if conflict.root_error
           return [conflict.requirement, requirement_for_existing_name(name_for(conflict.requirement))].compact
         end
 
@@ -499,7 +509,7 @@ module Molinillo
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
-      def create_conflict
+      def create_conflict(root_error = nil)
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 
@@ -521,7 +531,8 @@ module Molinillo
           possibility,
           locked_requirement,
           requirement_trees,
-          activated_by_name
+          activated_by_name,
+          root_error
         )
       end
 
