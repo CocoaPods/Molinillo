@@ -8,8 +8,8 @@ module Molinillo
       # @attr [{String,Nil=>[Object]}] requirements the requirements that caused the conflict
       # @attr [Object, nil] existing the existing spec that was in conflict with
       #   the {#possibility}
-      # @attr [Object] possibility the spec that was unable to be activated due
-      #   to a conflict
+      # @attr [Object] possibility_set the set of specs that was unable to be
+      #   activated due to a conflict.
       # @attr [Object] locked_requirement the relevant locking requirement.
       # @attr [Array<Array<Object>>] requirement_trees the different requirement
       #   trees that led to every requirement for the conflicting name.
@@ -18,11 +18,18 @@ module Molinillo
         :requirement,
         :requirements,
         :existing,
-        :possibility,
+        :possibility_set,
         :locked_requirement,
         :requirement_trees,
         :activated_by_name
       )
+
+      class Conflict
+        # @return [Object] a spec that was unable to be activated due to a conflict
+        def possibility
+          possibility_set && possibility_set.latest_version
+        end
+      end
 
       # A collection of possibility states that share the same dependencies
       # @attr [Array] dependencies the dependencies for this set of possibilities
@@ -230,8 +237,21 @@ module Molinillo
         index = -1
         maximal_index = states.size - 2
         conflicts.each do |dependency_name, conflict|
-          next unless activated.vertex_named(dependency_name)
-          conflict.requirements.values.flatten(1).uniq.each do |r|
+          # To avoid this conflict, we need to rewind to one of:
+          # 1) the state where the requirement was activated (and therefore its
+          #    current PossibilitySet chosen), or its parent, OR
+          # 2) a state that added a binding requirement in the conflict, or its
+          #    parent.
+          # There's no point re-winding to states that added non-binding
+          # requirements to the conflict - doing so would only result in us
+          # encountering the same conflict again, possibly after processing many
+          # wasted steps.
+          requirements_to_attempt_to_relax = [
+            initial_requirement_for_name(dependency_name),
+            *binding_requirements_for_conflict(conflict)
+          ].compact.uniq
+
+          requirements_to_attempt_to_relax.each do |r|
             until r.nil?
               return index if index == maximal_index
               current_state = find_state_for(r)
@@ -246,6 +266,32 @@ module Molinillo
         end
 
         index
+      end
+
+      # @param [String] name of a dependency
+      # @return [Object] the requirement that led to a version of a possibility
+      #   with the given name being activated.
+      def initial_requirement_for_name(name)
+        return nil unless activated.vertex_named(name)
+        return nil unless activated.vertex_named(name).payload
+        states.find { |s| s.name == name }.requirement
+      end
+
+      # @param [Conflict] conflict
+      # @return [Array] minimal array of requirements that would cause the passed
+      #    conflict to occur.
+      def binding_requirements_for_conflict(conflict)
+        return [conflict.requirement] unless conflict.possibility_set && !conflict.possibility_set.possibilities.empty?
+
+        all_requirements = conflict.requirements.values.flatten(1).uniq
+
+        all_requirements.each do |req|
+          if conflict.possibility_set.possibilities.none? { |poss| requirement_satisfied_by?(req, activated, poss) }
+            return [conflict.requirement, req]
+          end
+        end
+
+        all_requirements
       end
 
       # @return [Object] the requirement that led to `requirement` being added
@@ -291,7 +337,7 @@ module Molinillo
           requirement,
           requirements,
           vertex.payload && vertex.payload.latest_version,
-          possibility && possibility.latest_version,
+          possibility,
           locked_requirement,
           requirement_trees,
           activated_by_name
