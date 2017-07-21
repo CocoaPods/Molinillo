@@ -248,7 +248,7 @@ module Molinillo
           # wasted steps.
           requirements_to_attempt_to_relax = binding_requirements_for_conflict(conflict).
                                              unshift(initial_requirement_for_name(dependency_name)).
-                                             tap(&:compact!).tap(&:uniq!)
+                                             tap(&:uniq!)
 
           requirements_to_attempt_to_relax.each do |r|
             until r.nil?
