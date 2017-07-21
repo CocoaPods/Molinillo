@@ -246,17 +246,16 @@ module Molinillo
           # requirements to the conflict - doing so would only result in us
           # encountering the same conflict again, possibly after processing many
           # wasted steps.
-          requirements_to_attempt_to_relax = [
-            initial_requirement_for_name(dependency_name),
-            *binding_requirements_for_conflict(conflict)
-          ].compact.uniq
+          requirements_to_attempt_to_relax = binding_requirements_for_conflict(conflict).
+                                             unshift(initial_requirement_for_name(dependency_name)).
+                                             tap(&:compact!).tap(&:uniq!)
 
           requirements_to_attempt_to_relax.each do |r|
             until r.nil?
               return index if index == maximal_index
               current_state = find_state_for(r)
               filter_possibilities_for_conflict(current_state, conflict)
-              if current_state && current_state.possibilities.any?
+              if current_state && !current_state.possibilities.empty?
                 current_index = states.index(current_state)
                 index = current_index if current_index > index
                 break
