@@ -222,10 +222,12 @@ module Molinillo
       def unwind_for_conflict
         debug(depth) { "Unwinding for conflict: #{requirement} to #{state_index_for_unwind / 2}" }
         conflicts.tap do |c|
+          conflict_being_unwound = c[name]
           sliced_states = states.slice!((state_index_for_unwind + 1)..-1)
           raise VersionConflict.new(c) unless state
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
+          filter_possibilities_after_unwind(conflict_being_unwound)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
         end
@@ -292,6 +294,33 @@ module Molinillo
 
         state.possibilities.any? do |possibility_set|
           possibility_set.possibilities.any? do |poss|
+            activated.tag(:swap)
+            name = name_for(poss)
+            activated.set_payload(name, poss) if activated.vertex_named(name)
+            satisfied = all_requirements.all? do |r|
+              requirement_satisfied_by?(r, activated, poss)
+            end
+            activated.rewind_to(:swap)
+            satisfied
+          end
+        end
+      end
+
+      # Filter's a state's possibilities to remove any that would not fix the
+      # conflict we've just rewound from
+      # @param [Conflict] conflict just unwound from
+      # @return [void]
+      def filter_possibilities_after_unwind(conflict)
+        return unless state && !state.possibilities.empty?
+
+        # If the state we've rewound to didn't introduce a requirement that
+        # caused the conflict, just no-op
+        return unless name_for(conflict.requirement) == state.name
+
+        all_requirements = conflict.requirements.values.flatten(1).uniq
+
+        state.possibilities.reject! do |possibility_set|
+          possibility_set.possibilities.none? do |poss|
             activated.tag(:swap)
             name = name_for(poss)
             activated.set_payload(name, poss) if activated.vertex_named(name)
