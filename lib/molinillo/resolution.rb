@@ -255,7 +255,7 @@ module Molinillo
             until r.nil?
               return index if index == maximal_index
               current_state = find_state_for(r)
-              if state_any?(current_state)
+              if conflict_fixing_possibilities?(current_state, conflict)
                 current_index = states.index(current_state)
                 index = current_index if current_index > index
                 break
@@ -277,21 +277,66 @@ module Molinillo
         states.find { |s| s.name == name }.requirement
       end
 
+      # @param [DependencyState] state
+      # @param [Conflict] conflict
+      # @return [Boolean] whether or not the given state has any possibilities
+      #   left which might fix the given conflict.
+      def conflict_fixing_possibilities?(state, conflict)
+        return false unless state && state.possibilities.any?
+
+        # If the state introduces a requirement that caused the conflict, we
+        # need to check the possibilities fix the conflict. Otherwise we can
+        # return true (optimistically)
+        return true unless name_for(conflict.requirement) == state.name
+
+        state.possibilities.any? do |possibility_set|
+          possibility_set.possibilities.any? do |poss|
+            activated.tag(:swap)
+            activated.set_payload(name_for(poss), poss) if activated.vertex_named(name_for(poss))
+            satisfied = conflict.requirements.values.flatten(1).uniq.all? do |r|
+              requirement_satisfied_by?(r, activated, poss)
+            end
+            activated.rewind_to(:swap)
+            satisfied
+          end
+        end
+      end
+
       # @param [Conflict] conflict
       # @return [Array] minimal array of requirements that would cause the passed
       #    conflict to occur.
       def binding_requirements_for_conflict(conflict)
-        return [conflict.requirement] unless conflict.possibility_set && !conflict.possibility_set.possibilities.empty?
+        possibilities = search_for(conflict.requirement)
+        return [conflict.requirement] if possibilities.empty?
 
-        all_requirements = conflict.requirements.values.flatten(1).uniq
+        possible_binding_requirements = conflict.requirements.values.flatten(1).uniq - [conflict.requirement]
 
-        all_requirements.each do |req|
-          if conflict.possibility_set.possibilities.none? { |poss| requirement_satisfied_by?(req, activated, poss) }
-            return [conflict.requirement, req]
-          end
+        # Loop through the possible binding requirements, removing each one
+        # that doesn't bind. Use an `each` rather than a `reject!` as we wish
+        # to refine the array *on each iteration*.
+        possible_binding_requirements.each do |req|
+          next if binding_requirement_in_set?(req, possible_binding_requirements, possibilities)
+          possible_binding_requirements -= [req]
         end
 
-        all_requirements
+        possible_binding_requirements + [conflict.requirement]
+      end
+
+      # @param [Object] requirement we wish to check
+      # @param [Array] array of requirements
+      # @param [Array] array of possibilities the requirements will be used to filter
+      # @return [Boolean] whether or not the given requirement is required to filter
+      #    out all elements of the array of possibilities.
+      def binding_requirement_in_set?(requirement, possible_binding_requirements, possibilities)
+        possibilities.any? do |poss|
+          activated.tag(:swap)
+          activated.set_payload(name_for(poss), poss) if activated.vertex_named(name_for(poss))
+          satisfied = (possible_binding_requirements - [requirement]).all? do |r|
+            requirement_satisfied_by?(r, activated, poss)
+          end
+          activated.rewind_to(:swap)
+          satisfied
+        end
       end
 
       # @return [Object] the requirement that led to `requirement` being added
@@ -308,12 +353,6 @@ module Molinillo
       def find_state_for(requirement)
         return nil unless requirement
         states.reverse_each.find { |i| requirement == i.requirement && i.is_a?(DependencyState) }
-      end
-
-      # @return [Boolean] whether or not the given state has any possibilities
-      #   left.
-      def state_any?(state)
-        state && state.possibilities.any?
       end
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
