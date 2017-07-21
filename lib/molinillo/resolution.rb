@@ -255,7 +255,8 @@ module Molinillo
             until r.nil?
               return index if index == maximal_index
               current_state = find_state_for(r)
-              if conflict_fixing_possibilities?(current_state, conflict)
+              filter_possibilities_for_conflict(current_state, conflict)
+              if current_state && current_state.possibilities.any?
                 current_index = states.index(current_state)
                 index = current_index if current_index > index
                 break
@@ -277,20 +278,21 @@ module Molinillo
         states.find { |s| s.name == name }.requirement
       end
 
+      # Filter's a state's possibilities to remove any that do not fix the
+      # current conflict
       # @param [DependencyState] state
       # @param [Conflict] conflict
-      # @return [Boolean] whether or not the given state has any possibilities
-      #   left which might fix the given conflict.
-      def conflict_fixing_possibilities?(state, conflict)
-        return false unless state && state.possibilities.any?
+      # @return [void]
+      def filter_possibilities_for_conflict(state, conflict)
+        return unless state && state.possibilities.any?
 
         # If the state introduces a requirement that caused the conflict, we
         # need to check the possibilities fix the conflict. Otherwise we can
         # return true (optimistically)
-        return true unless name_for(conflict.requirement) == state.name
+        return unless name_for(conflict.requirement) == state.name
 
-        state.possibilities.any? do |possibility_set|
-          possibility_set.possibilities.any? do |poss|
+        state.possibilities.reject! do |possibility_set|
+          possibility_set.possibilities.none? do |poss|
             activated.tag(:swap)
             activated.set_payload(name_for(poss), poss) if activated.vertex_named(name_for(poss))
             satisfied = conflict.requirements.values.flatten(1).uniq.all? do |r|
