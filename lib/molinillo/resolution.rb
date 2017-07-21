@@ -284,18 +284,21 @@ module Molinillo
       # @param [Conflict] conflict
       # @return [void]
       def filter_possibilities_for_conflict(state, conflict)
-        return unless state && state.possibilities.any?
+        return unless state && !state.possibilities.empty?
 
         # If the state introduces a requirement that caused the conflict, we
         # need to check the possibilities fix the conflict. Otherwise we can
         # return true (optimistically)
         return unless name_for(conflict.requirement) == state.name
 
+        all_requirements = conflict.requirements.values.flatten(1).uniq
+
         state.possibilities.reject! do |possibility_set|
           possibility_set.possibilities.none? do |poss|
             activated.tag(:swap)
-            activated.set_payload(name_for(poss), poss) if activated.vertex_named(name_for(poss))
-            satisfied = conflict.requirements.values.flatten(1).uniq.all? do |r|
+            name = name_for(poss)
+            activated.set_payload(name, poss) if activated.vertex_named(name)
+            satisfied = all_requirements.all? do |r|
               requirement_satisfied_by?(r, activated, poss)
             end
             activated.rewind_to(:swap)
@@ -308,20 +311,20 @@ module Molinillo
       # @return [Array] minimal array of requirements that would cause the passed
       #    conflict to occur.
       def binding_requirements_for_conflict(conflict)
+        return [conflict.requirement] if conflict.possibility.nil?
         possibilities = search_for(conflict.requirement)
-        return [conflict.requirement] if possibilities.empty?
 
-        possible_binding_requirements = conflict.requirements.values.flatten(1).uniq - [conflict.requirement]
+        possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
 
         # Loop through the possible binding requirements, removing each one
         # that doesn't bind. Use an `each` rather than a `reject!` as we wish
         # to refine the array *on each iteration*.
-        possible_binding_requirements.each do |req|
-          next if binding_requirement_in_set?(req, possible_binding_requirements, possibilities)
-          possible_binding_requirements -= [req]
+        possible_binding_requirements.reject! do |req|
+          next false if req == conflict.requirement
+          !binding_requirement_in_set?(req, possible_binding_requirements, possibilities)
         end
 
-        possible_binding_requirements + [conflict.requirement]
+        possible_binding_requirements
       end
 
       # @param [Object] requirement we wish to check
@@ -332,8 +335,10 @@ module Molinillo
       def binding_requirement_in_set?(requirement, possible_binding_requirements, possibilities)
         possibilities.any? do |poss|
           activated.tag(:swap)
-          activated.set_payload(name_for(poss), poss) if activated.vertex_named(name_for(poss))
-          satisfied = (possible_binding_requirements - [requirement]).all? do |r|
+          name = name_for(poss)
+          activated.set_payload(name, poss) if activated.vertex_named(name)
+          satisfied = possible_binding_requirements.all? do |r|
+            next true if r == requirement
             requirement_satisfied_by?(r, activated, poss)
           end
           activated.rewind_to(:swap)
