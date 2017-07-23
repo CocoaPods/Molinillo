@@ -37,6 +37,49 @@ This stack-based approach is used because backtracking (also known as *unwinding
 15. Terminate with the topmost state's dependency graph when there are no more requirements left
 16. For each vertex with a payload of allowable versions for this resolution (i.e., a `PossibilitySet`), pick a single specific version.
 
+### Optimal unwinding
+
+For our backtracking algorithm to be efficient as well as correct, we need to
+unwind efficiently after a conflict is encountered. Unwind too far and we'll
+miss valid resolutions - once we unwind passed a DependencyState we can never
+get there again. Unwind too little and resolution will be extremely slow - we'll
+repeatedly hit the same conflict, processing many unnecessary iterations before
+getting to a branch that avoids it.
+
+To unwind the optimal amount, we consider each of the conflicts that have
+determined our current state, and the requirements that led to them. For each
+conflict we:
+
+1. Discard any requirements that aren't "binding" - that is, any that are
+unnecessary to cause the current conflict. We do this by looping over through
+the requirements in revers order to how they were added, removing each one if it
+is no necessary
+2. Loop through the array of binding requirements, looking for the highest index
+state that has possibilities that may still lead to a resolution. For each
+requirement:
+  - check if the DependencyState responsible for the requirement has alternative
+  possibilities that would satisfy all the other requirements. If so, the index
+  of that state becomes our new candidate index (if it is higher than the
+  current one)
+  - if no alternative possibilities existed for that state responsible for the
+  requirement, check the state's parent. Look for alternative possibilities that
+  parent state could take that would mean the requirement would never have been
+  created. If any exist, that parent state's index becomes our candidate index
+  (if it is higher than the current one)
+  - if no alternative possibilities for the parent of the state responsible for
+  the requirement, look at that state's parent and so forth, until we reach a
+  state with no alternative possibilities and no parents
+
+We then take the highest index found for any of the past conflicts, unwind to
+it, and prune out any possibilities on it that we now know would lead to the
+same conflict we just encountered. If no index to unwind to is found for any
+of the conflicts that determine our state, we throw a VersionConflict error, as
+resolution must not be possible.
+
+Finally, once an unwind has taken place, we use the additional information from
+the conflict we unwound from to filter the possibilities for the sate we have
+unwound to in `filter_possibilities_after_unwind`.
+
 ## Specification Provider
 
 The `SpecificationProvider` module forms the basis for the key integration point for a client library with Molinillo.
