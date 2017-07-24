@@ -14,6 +14,12 @@ AllCops:
 Style/TrailingCommaInArguments:
   Enabled: false
 
+Style/TrailingCommaInLiteral:
+  Enabled: false
+
+Style/EmptyElse:
+  EnforcedStyle: empty
+
 RaiseArgs:
   Enabled: false
 

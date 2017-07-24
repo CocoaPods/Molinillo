@@ -21,7 +21,19 @@
 
 ##### Bug Fixes
 
-* None.  
+* Consider additional (binding) requirements that caused a conflict when
+  determining which state to unwind to. Previously, in some cases Molinillo
+  would erroneously throw a VersionConflict error if multiple requirements
+  combined to cause a conflict.
+  [Grey Baker](https://github.com/greysteil)
+  [#72](https://github.com/CocoaPods/Molinillo/pull/72) 
+
+* Consider previous conflicts when determining the state to unwind to. If a
+  previous conflict, for a different dependency, is the reason we ended up with
+  the current conflict, then unwinding to a state that would not have caused
+  that conflict could prevent the current one, too.
+  [Grey Baker](https://github.com/greysteil)
+  [#72](https://github.com/CocoaPods/Molinillo/pull/72)
 
 
 ## 0.5.7 (2017-03-03)
