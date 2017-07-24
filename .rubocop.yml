@@ -2,6 +2,10 @@ inherit_from:
 - .rubocop_cocoapods.yml
 - .rubocop_todo.yml
 
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*_spec.rb'
+
 Metrics/LineLength:
   Max: 120
 
