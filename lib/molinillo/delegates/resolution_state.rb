@@ -46,6 +46,12 @@ module Molinillo
         current_state = state || Molinillo::ResolutionState.empty
         current_state.conflicts
       end
+
+      # (see Molinillo::ResolutionState#previous_conflicts)
+      def previous_conflicts
+        current_state = state || Molinillo::ResolutionState.empty
+        current_state.previous_conflicts
+      end
     end
   end
 end

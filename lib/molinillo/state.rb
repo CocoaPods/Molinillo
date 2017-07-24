@@ -9,6 +9,7 @@ module Molinillo
   # @attr [Object] possibilities the possibilities to satisfy the current requirement
   # @attr [Integer] depth the depth of the resolution
   # @attr [Set<Object>] conflicts unresolved conflicts
+  # @attr [Set<Object>] previous_conflicts all previous conflicts (including resolved ones)
   ResolutionState = Struct.new(
     :name,
     :requirements,
@@ -16,14 +17,15 @@ module Molinillo
     :requirement,
     :possibilities,
     :depth,
-    :conflicts
+    :conflicts,
+    :previous_conflicts
   )
 
   class ResolutionState
     # Returns an empty resolution state
     # @return [ResolutionState] an empty state
     def self.empty
-      new(nil, [], DependencyGraph.new, nil, nil, 0, Set.new)
+      new(nil, [], DependencyGraph.new, nil, nil, 0, Set.new, [])
     end
   end
 
@@ -41,7 +43,8 @@ module Molinillo
         requirement,
         [possibilities.pop],
         depth + 1,
-        conflicts.dup
+        conflicts.dup,
+        previous_conflicts.dup
       ).tap do |state|
         state.activated.tag(state)
       end
