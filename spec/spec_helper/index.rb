@@ -198,7 +198,7 @@ module Molinillo
     BundlerIndex,
     ReverseBundlerIndex,
     BundlerSingleAllNoPenaltyIndex,
-    # RandomSortIndex,
+    RandomSortIndex,
     CocoaPodsIndex,
     BerkshelfIndex,
   ].freeze

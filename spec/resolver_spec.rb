@@ -80,8 +80,6 @@ module Molinillo
 
       context.instance_eval do
         it test_case.name do
-          skip 'does not yet reliably pass' if test_case.ignore?(index_class)
-
           if test_case.conflicts.any?
             expect { test_case.resolve(index_class) }.to raise_error do |error|
               expect(error).to be_a(ResolverError)
@@ -105,19 +103,6 @@ module Molinillo
           end
         end
       end
-    end
-
-    def ignore?(index_class)
-      if [BerkshelfIndex, ReverseBundlerIndex, RandomSortIndex].include?(index_class) &&
-          name == 'can resolve when two specs have the same dependencies and swapping happens'
-
-        # These indexes don't do a great job sorting, and segiddins has been
-        # unable to get the test passing with the bad sort without breaking
-        # other specs
-        return true
-      end
-
-      false
     end
 
     def self.save!(path, name, index, requirements, resolved)
