@@ -69,13 +69,10 @@ the previous unwinds that have determined our current state.
 different, smaller unwind was chosen instead):
   - Ignore any previously unused unwinds that would now unwind further than the
   highest index found in (1), if any
-  - For the remaining unused unwind, check whether the unwind has a chance of
+  - For the remaining unused unwinds, check whether the unwind has a chance of
   preventing us encountering the current conflict. For this to be the case, the
-  unwind's requirement tree must overlap with an element of one of the
-  requirement trees for the current conflict
-    - TODO: I _think_ we can make this much stronger: the state that was rewound
-    to instead of opting for this unwind must be in the requirement tree for the
-    current conflict
+  unwind must have been rejected in favour of an unwind to one of the states in
+  the current conflict's requirement tree
   - If any such unwinds exist, use the one with the highest index (smallest
   unwind) instead of the one found in (1)
 3a. If no possible unwind was found in (1) and (2), raise a VersionConflict
@@ -88,6 +85,8 @@ possibilities that will certainly result in *all* of those conflicts can be
 filtered out as having no chance of resolution
 4. Update the list of unused unwinds:
   - Add all possible unwinds for the current conflict
+  - Update the `requirements_unwound_to_instead` attribute on any considered
+  unwind that was only rejected because it had a lower index than the chosen one
   - Remove all unwinds to a state greater than or equal to the chosen unwind
 5. Go to #6 in the main loop
 

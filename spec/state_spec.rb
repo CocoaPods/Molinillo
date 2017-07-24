@@ -13,7 +13,8 @@ module Molinillo
           'requirement',
           %w(possibility1 possibility),
           0,
-          {}
+          {},
+          []
         )
       end
 
