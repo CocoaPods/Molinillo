@@ -65,7 +65,7 @@ module Molinillo
     # @param [SpecificationProvider] specification_provider see {#specification_provider}
     def initialize(conflicts, specification_provider)
       pairs = []
-      conflicts.values.flatten.map(&:requirements).flatten.each do |conflicting|
+      Compatibility.flat_map(conflicts.values.flatten, &:requirements).each do |conflicting|
         conflicting.each do |source, conflict_requirements|
           conflict_requirements.each do |c|
             pairs << [c, source]
