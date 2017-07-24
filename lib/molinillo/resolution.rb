@@ -322,17 +322,15 @@ module Molinillo
       def conflict_fixing_possibilities?(state, binding_requirements)
         return false unless state
 
-        state.possibilities.any? do |possibility_set|
-          possibility_set.possibilities.any? do |poss|
-            activated.tag(:swap)
-            name = name_for(poss)
-            activated.set_payload(name, poss) if activated.vertex_named(name)
-            satisfied = binding_requirements.all? do |r|
-              requirement_satisfied_by?(r, activated, poss)
-            end
-            activated.rewind_to(:swap)
-            satisfied
+        state.possibilities.map(&:possibilities).flatten(1).any? do |poss|
+          activated.tag(:swap)
+          name = name_for(poss)
+          activated.set_payload(name, poss) if activated.vertex_named(name)
+          satisfied = binding_requirements.all? do |r|
+            requirement_satisfied_by?(r, activated, poss)
           end
+          activated.rewind_to(:swap)
+          satisfied
         end
       end
 
@@ -389,12 +387,19 @@ module Molinillo
 
         possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
 
+        # If all the requirements together don't filter out all possibilities,
+        # then the only two requirements we need to consider are the initial one
+        # (where the dependency's version was first chosen) and the last
+        if binding_requirement_in_set?(nil, possible_binding_requirements, possibilities)
+          return [conflict.requirement, requirement_for_existing_name(name_for(conflict.requirement))].compact
+        end
+
         # Loop through the possible binding requirements, removing each one
         # that doesn't bind. Use a `reverse_each` as we want the earliest set of
         # binding requirements, and don't use `reject!` as we wish to refine the
         # array *on each iteration*.
         possible_binding_requirements.reverse_each do |req|
-          next false if req == conflict.requirement
+          next if req == conflict.requirement
           unless binding_requirement_in_set?(req, possible_binding_requirements, possibilities)
             possible_binding_requirements -= [req]
           end
@@ -429,6 +434,13 @@ module Molinillo
         return unless index = @parents_of[requirement].last
         return unless parent_state = @states[index]
         parent_state.requirement
+      end
+
+      # @return [Object] the requirement that led to a version of a possibility
+      #   with the given name being activated.
+      def requirement_for_existing_name(name)
+        return nil unless activated.vertex_named(name).payload
+        states.find { |s| s.name == name }.requirement
       end
 
       # @return [ResolutionState] the state whose `requirement` is the given
