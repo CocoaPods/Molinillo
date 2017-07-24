@@ -36,6 +36,13 @@ module Molinillo
       # @attr [Array] possibilities the possibilities
       PossibilitySet = Struct.new(:dependencies, :possibilities)
 
+      # Details of the state to unwind to when a conflict occurs, and the cause of the unwind
+      # @attr [Integer] state_index the index of the state to unwind to
+      # @attr [Object] requirement the requirement we intend to relax by unwinding
+      # @attr [Symbol] relationship the relationship between the new state and the requirement
+      # @attr [Array] conflicting_requirements the requirements that combined to cause the conflict
+      UnwindDetails = Struct.new(:state_index, :requirement, :relationship, :conflicting_requirements)
+
       class PossibilitySet
         # String representation of the possibility set, for debugging
         def to_s
@@ -221,9 +228,9 @@ module Molinillo
       # @return [void]
       def unwind_for_conflict
         details_for_unwind = build_details_for_unwind
-        debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind[:index] / 2}" }
+        debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
-          sliced_states = states.slice!((details_for_unwind[:index] + 1)..-1)
+          sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
           raise VersionConflict.new(c) unless state
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
@@ -233,16 +240,17 @@ module Molinillo
         end
       end
 
-      # @return [Hash] Details of the nearest index to which we could unwind
+      # @return [UnwindDetails] Details of the nearest index to which we could unwind
       def build_details_for_unwind
         # Process the current conflict first, as it's like to produce the highest
         # index, allowing us to short-circuit subsequent checks
         current_conflict = conflicts[name]
         unwind_details = unwind_details_for_conflict(current_conflict)
-        return unwind_details if unwind_details[:index] == states.size - 2
+        return unwind_details if unwind_details.state_index == states.size - 2
 
         # Process previous conflicts
-        (conflicts.values - [current_conflict]).each do |conflict|
+        conflicts.values.each do |conflict|
+          next if conflict == current_conflict
           unwind_details = unwind_details_for_conflict(conflict, unwind_details)
         end
 
@@ -250,13 +258,13 @@ module Molinillo
       end
 
       # @param [Conflict] conflict to be unwound from
-      # @param [Hash] details of the currently proposed unwind details
-      # @return [Hash] Details of the nearest index to which we could unwind to
+      # @param [UnwindDetails] details of the currently proposed unwind details
+      # @return [UnwindDetails] Details of the nearest index to which we could unwind to
       #    resolve the given conflict conflict
       # rubocop:disable Metrics/CyclomaticComplexity
-      def unwind_details_for_conflict(conflict, existing_details = { :index => -1 })
+      def unwind_details_for_conflict(conflict, existing_unwind_details = nil)
         maximal_index = states.size - 2
-        unwind_details = existing_details.dup
+        unwind_details = existing_unwind_details || UnwindDetails.new(-1, nil, nil, [])
 
         binding_requirements = binding_requirements_for_conflict(conflict)
         binding_requirements.reverse_each do |r|
@@ -264,13 +272,10 @@ module Molinillo
           # satisfy the other requirements that created this conflict
           requirement_state = find_state_for(r)
           candidate_index = states.index(requirement_state)
-          next if candidate_index && candidate_index < unwind_details[:index]
+          next if candidate_index && candidate_index < unwind_details.state_index
           if conflict_fixing_possibilities?(requirement_state, binding_requirements)
-            unwind_details[:index] = candidate_index
-            unwind_details[:relationship] = :primary
-            unwind_details[:requirement] = r
-            unwind_details[:conflicting_requirements] = binding_requirements
-            return unwind_details if unwind_details[:index] == maximal_index
+            unwind_details = UnwindDetails.new(candidate_index, r, :primary, binding_requirements)
+            return unwind_details if unwind_details.state_index == maximal_index
 
             next # No need to look at this requirement's parent, as it couldn't have a higher index
           end
@@ -280,14 +285,10 @@ module Molinillo
           parent_r = parent_of(r)
           requirement_state = find_state_for(parent_r)
           candidate_index = states.index(requirement_state)
-          next unless candidate_index && candidate_index >= unwind_details[:index]
-          if requirement_state &&
-              requirement_state.possibilities.any? { |set| set.dependencies.none? { |dep| dep == r } }
-            if candidate_index > unwind_details[:index] || unwind_details[:relationship] == :primary
-              unwind_details[:index] = candidate_index
-              unwind_details[:relationship] = :parent
-              unwind_details[:requirement] = r
-              unwind_details[:conflicting_requirements] = binding_requirements
+          next unless candidate_index && candidate_index >= unwind_details.state_index
+          if requirement_state && requirement_state.possibilities.any? { |set| !set.dependencies.include?(r) }
+            if candidate_index > unwind_details.state_index || unwind_details.relationship == :primary
+              unwind_details = UnwindDetails.new(candidate_index, r, :parent, binding_requirements)
             end
 
             next # No need to look at this requirement's grandparent, as it couldn't have a higher index
@@ -300,12 +301,9 @@ module Molinillo
           until grandparent_r.nil?
             requirement_state = find_state_for(grandparent_r)
             candidate_index = states.index(requirement_state)
-            break unless candidate_index && candidate_index >= unwind_details[:index]
+            break unless candidate_index && candidate_index >= unwind_details.state_index
             if requirement_state && !requirement_state.possibilities.empty?
-              unwind_details[:index] = candidate_index
-              unwind_details[:relationship] = :grandparent
-              unwind_details[:requirement] = r
-              unwind_details[:conflicting_requirements] = binding_requirements
+              unwind_details = UnwindDetails.new(candidate_index, r, :grandparent, binding_requirements)
               break
             end
             grandparent_r = parent_of(grandparent_r)
@@ -322,37 +320,40 @@ module Molinillo
       def conflict_fixing_possibilities?(state, binding_requirements)
         return false unless state
 
-        state.possibilities.map(&:possibilities).flatten(1).any? do |poss|
-          activated.tag(:swap)
-          name = name_for(poss)
-          activated.set_payload(name, poss) if activated.vertex_named(name)
-          satisfied = binding_requirements.all? do |r|
-            requirement_satisfied_by?(r, activated, poss)
+        state.possibilities.any? do |possibility_set|
+          possibility_set.possibilities.any? do |poss|
+            activated.tag(:swap)
+            name = name_for(poss)
+            activated.set_payload(name, poss) if activated.vertex_named(name)
+            satisfied = binding_requirements.all? do |r|
+              requirement_satisfied_by?(r, activated, poss)
+            end
+            activated.rewind_to(:swap)
+            satisfied
           end
-          activated.rewind_to(:swap)
-          satisfied
         end
       end
 
       # Filter's a state's possibilities to remove any that would not fix the
       # conflict we've just rewound from
-      # @param [Hash] details of the conflict just unwound from
+      # @param [UnwindDetails] details of the conflict just unwound from
       # @return [void]
       def filter_possibilities_after_unwind(unwind_details)
         return unless state && !state.possibilities.empty?
 
-        case unwind_details[:relationship]
+        case unwind_details.relationship
         when :primary then filter_possibilities_for_primary_unwind(unwind_details)
         when :parent then filter_possibilities_for_parent_unwind(unwind_details)
+        else nil # We can't do any filtering for grandparent relationships
         end
       end
 
       # Filter's a state's possibilities to remove any that would not satisfy
       # the requirements in the conflict we've just rewound from
-      # @param [Hash] details of the conflict just unwound from
+      # @param [UnwindDetails] details of the conflict just unwound from
       # @return [void]
       def filter_possibilities_for_primary_unwind(unwind_details)
-        all_requirements = unwind_details[:conflicting_requirements]
+        all_requirements = unwind_details.conflicting_requirements
 
         state.possibilities.reject! do |possibility_set|
           possibility_set.possibilities.none? do |poss|
@@ -370,11 +371,11 @@ module Molinillo
 
       # Filter's a state's possibilities to remove any that would create a
       # specific requirement in the conflict we've just rewound from
-      # @param [Hash] details of the conflict just unwound from
+      # @param [UnwindDetails] details of the conflict just unwound from
       # @return [void]
       def filter_possibilities_for_parent_unwind(unwind_details)
         state.possibilities.reject! do |possibility_set|
-          possibility_set.dependencies.include?(unwind_details[:requirement])
+          possibility_set.dependencies.include?(unwind_details.requirement)
         end
       end
 
@@ -398,14 +399,15 @@ module Molinillo
         # that doesn't bind. Use a `reverse_each` as we want the earliest set of
         # binding requirements, and don't use `reject!` as we wish to refine the
         # array *on each iteration*.
+        binding_requirements = possible_binding_requirements.dup
         possible_binding_requirements.reverse_each do |req|
           next if req == conflict.requirement
-          unless binding_requirement_in_set?(req, possible_binding_requirements, possibilities)
-            possible_binding_requirements -= [req]
+          unless binding_requirement_in_set?(req, binding_requirements, possibilities)
+            binding_requirements -= [req]
           end
         end
 
-        possible_binding_requirements
+        binding_requirements
       end
 
       # @param [Object] requirement we wish to check

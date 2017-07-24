@@ -52,8 +52,8 @@ conflict we:
 
 1. Discard any requirements that aren't "binding" - that is, any that are
 unnecessary to cause the current conflict. We do this by looping over through
-the requirements in revers order to how they were added, removing each one if it
-is no necessary
+the requirements in reverse order to how they were added, removing each one if
+it is not necessary
 2. Loop through the array of binding requirements, looking for the highest index
 state that has possibilities that may still lead to a resolution. For each
 requirement:
