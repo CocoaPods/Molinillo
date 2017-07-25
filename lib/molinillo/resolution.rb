@@ -272,9 +272,9 @@ module Molinillo
         details_for_unwind = build_details_for_unwind
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
-          updated_conflicts = state.previous_conflicts
+          updated_conflicts = state.previous_unwinds
           if details_for_unwind.new_conflict_requirements
-            updated_conflicts << details_for_unwind.new_conflict_requirements
+            updated_conflicts << details_for_unwind
           end
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
           unless state
@@ -283,7 +283,7 @@ module Molinillo
           end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
-          state.previous_conflicts = updated_conflicts
+          state.previous_unwinds = updated_conflicts
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
@@ -299,14 +299,16 @@ module Molinillo
         unwind_details = unwind_details_for_requirements(binding_requirements)
         return unwind_details if unwind_details.state_index == states.size - 2
 
-        add_conflict_to_previous_conflicts = unwind_details.state_index > -1 && unwind_details.relationship != :primary
+        # TODO: For now we're filtering out primary unwinds for performance reasons. Once we move
+        # to smart selection of previous unwinds we can remove this line.
+        add_to_previous_unwinds = unwind_details.state_index > -1 && unwind_details.relationship != :primary
 
         # Process previous conflicts
-        previous_conflicts.each do |reqs|
-          unwind_details = unwind_details_for_requirements(reqs, unwind_details)
+        previous_unwinds.each do |unwind|
+          unwind_details = unwind_details_for_requirements(unwind.conflicting_requirements, unwind_details)
         end
 
-        unwind_details.new_conflict_requirements = binding_requirements if add_conflict_to_previous_conflicts
+        unwind_details.new_conflict_requirements = binding_requirements if add_to_previous_unwinds
         unwind_details
       end
 
@@ -696,7 +698,7 @@ module Molinillo
         possibilities = possibilities_for_requirement(new_requirement)
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
-          new_requirement, possibilities, depth, conflicts.dup, previous_conflicts.dup
+          new_requirement, possibilities, depth, conflicts.dup, previous_unwinds.dup
         )
       end
 

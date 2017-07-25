@@ -47,10 +47,10 @@ module Molinillo
         current_state.conflicts
       end
 
-      # (see Molinillo::ResolutionState#previous_conflicts)
-      def previous_conflicts
+      # (see Molinillo::ResolutionState#previous_unwinds)
+      def previous_unwinds
         current_state = state || Molinillo::ResolutionState.empty
-        current_state.previous_conflicts
+        current_state.previous_unwinds
       end
     end
   end
