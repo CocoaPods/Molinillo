@@ -297,13 +297,9 @@ module Molinillo
         current_conflict = conflicts[name]
         binding_requirements = binding_requirements_for_conflict(current_conflict)
         unwind_details = unwind_details_for_requirements(binding_requirements)
+        return unwind_details if unwind_details.state_index == states.size - 2
 
-        add_conflict_to_previous_conflicts = unwind_details.state_index > -1
-
-        if unwind_details.state_index == states.size - 2
-          unwind_details.new_conflict_requirements = binding_requirements if add_conflict_to_previous_conflicts
-          return unwind_details
-        end
+        add_conflict_to_previous_conflicts = unwind_details.state_index > -1 && unwind_details.relationship != :primary
 
         # Process previous conflicts
         previous_conflicts.each do |reqs|
