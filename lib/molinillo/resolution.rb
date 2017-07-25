@@ -135,7 +135,7 @@ module Molinillo
         start_resolution
 
         while state
-          break unless state.requirements.any? || state.requirement
+          break if !state.requirement && state.requirements.empty?
           indicate_progress
           if state.respond_to?(:pop_possibility_state) # DependencyState
             debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
