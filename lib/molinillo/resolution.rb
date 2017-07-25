@@ -15,7 +15,7 @@ module Molinillo
       # @attr [Array<Array<Object>>] requirement_trees the different requirement
       #   trees that led to every requirement for the conflicting name.
       # @attr [{String=>Object}] activated_by_name the already-activated specs.
-      # @attr [Object] root_error an error that has occurred during resolution, and
+      # @attr [Object] underlying_error an error that has occurred during resolution, and
       #    will be raised at the end of it if no resolution is found.
       Conflict = Struct.new(
         :requirement,
@@ -25,7 +25,7 @@ module Molinillo
         :locked_requirement,
         :requirement_trees,
         :activated_by_name,
-        :root_error
+        :underlying_error
       )
 
       class Conflict
@@ -223,8 +223,8 @@ module Molinillo
           create_conflict if state.is_a? PossibilityState
           unwind_for_conflict until possibility && state.is_a?(DependencyState)
         end
-      rescue CircularDependencyError => root_error
-        create_conflict(root_error)
+      rescue CircularDependencyError => underlying_error
+        create_conflict(underlying_error)
         unwind_for_conflict
       end
 
@@ -275,7 +275,7 @@ module Molinillo
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
           unless state
-            error = c.values.map(&:root_error).compact.first
+            error = c.values.map(&:underlying_error).compact.first
             raise error || VersionConflict.new(c, specification_provider)
           end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
@@ -444,15 +444,22 @@ module Molinillo
       #    conflict to occur.
       def binding_requirements_for_conflict(conflict)
         return [conflict.requirement] if conflict.possibility.nil?
-        possibilities = search_for(conflict.requirement)
 
         possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
+
+        # When there’s a `CircularDependency` error the conflicting requirement
+        # (the one causing the circular) won’t be `conflict.requirement`
+        # (which won’t be for the right state, because we won’t have created it, because it’s circular).
+        # We need to make sure we have that requirement in the conflict’s list,
+        # otherwise we won’t be able to unwind properly.
+        return possible_binding_requirements if conflict.underlying_error
+
+        possibilities = search_for(conflict.requirement)
 
         # If all the requirements together don't filter out all possibilities,
         # then the only two requirements we need to consider are the initial one
         # (where the dependency's version was first chosen) and the last
         if binding_requirement_in_set?(nil, possible_binding_requirements, possibilities)
-          return possible_binding_requirements if conflict.root_error
           return [conflict.requirement, requirement_for_existing_name(name_for(conflict.requirement))].compact
         end
 
@@ -515,7 +522,7 @@ module Molinillo
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
-      def create_conflict(root_error = nil)
+      def create_conflict(underlying_error = nil)
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 
@@ -538,7 +545,7 @@ module Molinillo
           locked_requirement,
           requirement_trees,
           activated_by_name,
-          root_error
+          underlying_error
         )
       end
 
