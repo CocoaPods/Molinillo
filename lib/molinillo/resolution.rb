@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module Molinillo
   class Resolver
     # A specific resolution from a given {Resolver}
@@ -51,8 +52,6 @@ module Molinillo
 
         # @return [Object] most up-to-date dependency in the possibility set
         def latest_version
-          # TODO: sorting by version here would be a lot better than relying on
-          # possibilities having been inserted in the right order...
           possibilities.last
         end
       end
@@ -449,7 +448,7 @@ module Molinillo
       #   `requirement`.
       def find_state_for(requirement)
         return nil unless requirement
-        states.reverse_each.find { |i| requirement == i.requirement && i.is_a?(DependencyState) }
+        states.find { |i| requirement == i.requirement }
       end
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
@@ -623,7 +622,11 @@ module Molinillo
       # @return [void]
       def push_state_for_requirements(new_requirements, requires_sort = true, new_activated = activated)
         new_requirements = sort_dependencies(new_requirements.uniq, new_activated, conflicts) if requires_sort
-        new_requirement = new_requirements.shift
+        new_requirement = nil
+        loop do
+          new_requirement = new_requirements.shift
+          break if new_requirement.nil? || states.none? { |s| s.requirement == new_requirement }
+        end
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = possibilities_for_requirement(new_requirement)
         handle_missing_or_push_dependency_state DependencyState.new(
