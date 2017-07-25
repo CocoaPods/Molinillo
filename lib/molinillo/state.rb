@@ -9,7 +9,7 @@ module Molinillo
   # @attr [Object] possibilities the possibilities to satisfy the current requirement
   # @attr [Integer] depth the depth of the resolution
   # @attr [Set<Object>] conflicts unresolved conflicts
-  # @attr [Set<Object>] previous_unwinds all previous conflicts (including resolved ones)
+  # @attr [Set<Object>] unused_unwind_options unwinds for previous conflicts that weren't explored
   ResolutionState = Struct.new(
     :name,
     :requirements,
@@ -18,7 +18,7 @@ module Molinillo
     :possibilities,
     :depth,
     :conflicts,
-    :previous_unwinds
+    :unused_unwind_options
   )
 
   class ResolutionState
@@ -44,7 +44,7 @@ module Molinillo
         [possibilities.pop],
         depth + 1,
         conflicts.dup,
-        previous_unwinds.dup
+        unused_unwind_options.dup
       ).tap do |state|
         state.activated.tag(state)
       end

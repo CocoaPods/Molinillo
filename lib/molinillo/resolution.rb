@@ -270,12 +270,9 @@ module Molinillo
       # @return [void]
       def unwind_for_conflict
         details_for_unwind = build_details_for_unwind
+        unwind_options = unused_unwind_options
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
-          updated_conflicts = state.previous_unwinds
-          if details_for_unwind.new_conflict_requirements
-            updated_conflicts << details_for_unwind
-          end
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
           unless state
             error = c.values.map(&:root_error).compact.first
@@ -283,72 +280,69 @@ module Molinillo
           end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
-          state.previous_unwinds = updated_conflicts
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
+          state.unused_unwind_options = unwind_options.map { |set| set.reject { |uw| uw.state_index >= index } }
         end
       end
 
       # @return [UnwindDetails] Details of the nearest index to which we could unwind
       def build_details_for_unwind
-        # Process the current conflict first, as it's like to produce the highest
-        # index, allowing us to short-circuit subsequent checks
+        # Get all the possible unwinds for the current conflict
         current_conflict = conflicts[name]
         binding_requirements = binding_requirements_for_conflict(current_conflict)
         unwind_details = unwind_details_for_requirements(binding_requirements)
-        return unwind_details if unwind_details.state_index == states.size - 2
 
-        # TODO: For now we're filtering out primary unwinds for performance reasons. Once we move
-        # to smart selection of previous unwinds we can remove this line.
-        add_to_previous_unwinds = unwind_details.state_index > -1 && unwind_details.relationship != :primary
+        # Look for a past conflict that could be unwound further / differently,
+        # and where doing so would affect the requirement tree for the current
+        # conflict
+        # TODO: Can we filter this further? Check there's a chance of resolution
+        # for primary / parent elements of the tree?
+        higher_alternative = unused_unwind_options.select do |option_set|
+          next false unless option_set.last > unwind_details.last
+          (Compatibility.flat_map(option_set, &:requirement_tree) &
+            Compatibility.flat_map(unwind_details, &:requirement_tree)).any?
+        end.sort_by(&:last).last
 
-        # Process previous conflicts
-        previous_unwinds.each do |unwind|
-          unwind_details = unwind_details_for_requirements(unwind.conflicting_requirements, unwind_details)
-        end
+        # Add the current unwind options to the `unused_unwind_options` array.
+        # The "used" option will be filtered out during `unwind_for_conflict`.
+        unused_unwind_options << unwind_details
 
-        unwind_details.new_conflict_requirements = binding_requirements if add_to_previous_unwinds
-        unwind_details
+        return unwind_details.last unless higher_alternative
+        higher_alternative.last
       end
 
       # @param [Conflict] conflict to be unwound from
       # @param [UnwindDetails] details of the currently proposed unwind details
       # @return [UnwindDetails] Details of the nearest index to which we could unwind to
       #    resolve the given conflict conflict
-      # rubocop:disable Metrics/CyclomaticComplexity
-      def unwind_details_for_requirements(binding_requirements, existing_unwind_details = nil)
-        maximal_index = states.size - 2
-        unwind_details = existing_unwind_details || UnwindDetails.new(-1, nil, nil, [])
+      def unwind_details_for_requirements(binding_requirements)
+        unwind_details = []
 
         trees = []
         binding_requirements.reverse_each do |r|
           partial_tree = [r]
           trees << partial_tree
+          unwind_details << UnwindDetails.new(-1, nil, partial_tree, binding_requirements, trees)
+
           # If this requirement has alternative possibilities, check if any would
           # satisfy the other requirements that created this conflict
           requirement_state = find_state_for(r)
           candidate_index = states.index(requirement_state)
-          next if candidate_index && UnwindDetails.new(candidate_index, r, partial_tree) < unwind_details
           if conflict_fixing_possibilities?(requirement_state, binding_requirements)
-            unwind_details = UnwindDetails.new(candidate_index, r, partial_tree, binding_requirements, trees)
-            return unwind_details if unwind_details.state_index == maximal_index
-
-            next # No need to look at this requirement's parent, as it couldn't have a higher index
+            unwind_details << UnwindDetails.new(candidate_index, r, partial_tree, binding_requirements, trees)
           end
 
           # Next, look at the parent of this requirement, and check if the requirement
           # could have been avoided if an alternative PossibilitySet had been chosen
           parent_r = parent_of(r)
-          partial_tree.unshift(parent_r) unless parent_r.nil?
+          next if parent_r.nil?
+          partial_tree.unshift(parent_r)
           requirement_state = find_state_for(parent_r)
           candidate_index = states.index(requirement_state)
-          next unless candidate_index
-          next unless UnwindDetails.new(candidate_index, parent_r, partial_tree) > unwind_details
           if requirement_state.possibilities.any? { |set| !set.dependencies.include?(r) }
-            unwind_details = UnwindDetails.new(candidate_index, parent_r, partial_tree, binding_requirements, trees)
-
-            next # No need to look at this requirement's grandparent, as it couldn't have a higher index
+            unwind_details << UnwindDetails.new(candidate_index, parent_r, partial_tree, binding_requirements, trees)
           end
 
           # Finally, look at the grandparent and up of this requirement, looking
@@ -358,19 +352,16 @@ module Molinillo
             partial_tree.unshift(grandparent_r)
             requirement_state = find_state_for(grandparent_r)
             candidate_index = states.index(requirement_state)
-            break unless candidate_index
-            break unless UnwindDetails.new(candidate_index, grandparent_r, partial_tree) > unwind_details
             if requirement_state.possibilities.any? { |set| !set.dependencies.include?(parent_r) }
-              unwind_details =
+              unwind_details <<
                 UnwindDetails.new(candidate_index, grandparent_r, partial_tree, binding_requirements, trees)
-              break
             end
             parent_r = grandparent_r
             grandparent_r = parent_of(parent_r)
           end
         end
 
-        unwind_details
+        unwind_details.sort
       end
 
       # @param [DependencyState] state
@@ -698,7 +689,7 @@ module Molinillo
         possibilities = possibilities_for_requirement(new_requirement)
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
-          new_requirement, possibilities, depth, conflicts.dup, previous_unwinds.dup
+          new_requirement, possibilities, depth, conflicts.dup, unused_unwind_options.dup
         )
       end
 
