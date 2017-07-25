@@ -48,7 +48,7 @@ begin
   #-- Ruby Warnings ----------------------------------------------------------#
 
   task :no_warnings do
-    next if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
+    next if %w[jruby rbx].include?(Gem.ruby_engine)
 
     files = FileList['lib/**/*.rb']
 

@@ -92,4 +92,4 @@ describe 'fuzzing' do
     0,
     3,
   ].concat(Array.new(ENV.fetch('MOLINILLO_FUZZER', '0').to_i) { Random.rand })
-end if RUBY_VERSION >= '1.9'
+end if RUBY_VERSION >= '1.9' && !%w[rbx].include?(Gem.ruby_engine)
