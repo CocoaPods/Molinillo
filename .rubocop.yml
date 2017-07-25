@@ -10,6 +10,7 @@ AllCops:
   Exclude:
     - 'vendor/**/*'
     - 'spec/resolver_integration_specs/**/*'
+    - 'bin/*'
 
 Style/TrailingCommaInArguments:
   Enabled: false

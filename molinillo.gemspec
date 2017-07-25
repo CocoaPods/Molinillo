@@ -12,8 +12,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = 'https://github.com/CocoaPods/Molinillo'
   spec.license       = 'MIT'
 
-  spec.files         = Dir['lib/**/*.rb'] + %w(README.md LICENSE)
-  spec.test_files    = Dir['spec/**/*.rb']
+  spec.files         = Dir['lib/**/*.rb', '*.md', 'LICENSE']
   spec.require_paths = ['lib']
 
   spec.add_development_dependency 'bundler', '~> 1.5'
