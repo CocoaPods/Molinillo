@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module Molinillo
   class TestUI
     include UI

@@ -1,4 +1,10 @@
-inherit_from: .rubocop_cocoapods.yml
+inherit_from:
+- .rubocop_cocoapods.yml
+- .rubocop_todo.yml
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*_spec.rb'
 
 Metrics/LineLength:
   Max: 120
@@ -30,6 +36,9 @@ Lint/UnusedMethodArgument:
 
 Style/FrozenStringLiteralComment:
   EnforcedStyle: always
+
+Layout/IndentHeredoc:
+  Enabled: false
 
 # CocoaPods default overrides
 

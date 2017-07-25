@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 RSpec::Matchers.define :equal_dependency_graph do |expected|
   diffable
   attr_reader :actual, :expected

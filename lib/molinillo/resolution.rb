@@ -230,7 +230,7 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
-          raise VersionConflict.new(c) unless state
+          raise VersionConflict.new(c, specification_provider) unless state
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           filter_possibilities_after_unwind(details_for_unwind)

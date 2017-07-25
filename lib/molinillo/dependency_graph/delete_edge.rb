@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'molinillo/dependency_graph/action'
 module Molinillo
   class DependencyGraph
