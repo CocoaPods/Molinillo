@@ -283,8 +283,7 @@ module Molinillo
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
-          state.unused_unwind_options =
-            unwind_options.map { |set| set.reject { |uw| uw.state_index >= index } }.reject(&:empty?)
+          state.unused_unwind_options = unwind_options.reject { |uw| uw.state_index >= index }.uniq
         end
       end
 
@@ -302,11 +301,10 @@ module Molinillo
         # conflict
         # TODO: Can we filter this further? Check there's a chance of resolution
         # for primary / parent elements of the tree?
-        unused_unwind_options.each do |option_set|
-          alternative = option_set.last
+        unused_unwind_options.each do |alternative|
           next unless alternative > last_detail
           intersecting_requirements =
-            option_set.last.requirement_trees.flatten(1) &
+            alternative.requirement_trees.flatten(1) &
             last_detail.requirement_trees.flatten(1)
           next if intersecting_requirements.empty?
           last_detail = alternative
@@ -314,7 +312,7 @@ module Molinillo
 
         # Add the current unwind options to the `unused_unwind_options` array.
         # The "used" option will be filtered out during `unwind_for_conflict`.
-        unused_unwind_options << unwind_details.reject { |detail| detail.state_index == -1 }
+        state.unused_unwind_options += unwind_details.reject { |detail| detail.state_index == -1 }
 
         last_detail
       end
