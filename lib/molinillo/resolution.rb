@@ -283,7 +283,8 @@ module Molinillo
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
-          state.unused_unwind_options = unwind_options.map { |set| set.reject { |uw| uw.state_index >= index } }
+          state.unused_unwind_options =
+            unwind_options.map { |set| set.reject { |uw| uw.state_index >= index } }.reject(&:empty?)
         end
       end
 
@@ -305,15 +306,15 @@ module Molinillo
           alternative = option_set.last
           next unless alternative > last_detail
           intersecting_requirements =
-            Compatibility.flat_map(option_set, &:requirement_tree) &
-            Compatibility.flat_map(unwind_details, &:requirement_tree)
+            option_set.last.requirement_trees.flatten(1) &
+            last_detail.requirement_trees.flatten(1)
           next if intersecting_requirements.empty?
           last_detail = alternative
         end
 
         # Add the current unwind options to the `unused_unwind_options` array.
         # The "used" option will be filtered out during `unwind_for_conflict`.
-        unused_unwind_options << unwind_details
+        unused_unwind_options << unwind_details.reject { |detail| detail.state_index == -1 }
 
         last_detail
       end
