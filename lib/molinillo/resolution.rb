@@ -283,7 +283,7 @@ module Molinillo
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
-          state.unused_unwind_options = unwind_options.reject { |uw| uw.state_index >= index }.uniq
+          state.unused_unwind_options = unwind_options.reject { |uw| uw.state_index >= index }
         end
       end
 
@@ -294,27 +294,26 @@ module Molinillo
         binding_requirements = binding_requirements_for_conflict(current_conflict)
         unwind_details = unwind_details_for_requirements(binding_requirements)
 
-        last_detail = unwind_details.last
+        last_detail_for_current_unwind = unwind_details.last
+        current_detail = last_detail_for_current_unwind
 
         # Look for a past conflict that could be unwound further / differently,
         # and where doing so would affect the requirement tree for the current
         # conflict
-        # TODO: Can we filter this further? Check there's a chance of resolution
-        # for primary / parent elements of the tree?
         unused_unwind_options.each do |alternative|
-          next unless alternative > last_detail
+          next unless alternative > current_detail
           intersecting_requirements =
             alternative.requirement_trees.flatten(1) &
-            last_detail.requirement_trees.flatten(1)
+            last_detail_for_current_unwind.requirement_trees.flatten(1)
           next if intersecting_requirements.empty?
-          last_detail = alternative
+          current_detail = alternative
         end
 
         # Add the current unwind options to the `unused_unwind_options` array.
         # The "used" option will be filtered out during `unwind_for_conflict`.
         state.unused_unwind_options += unwind_details.reject { |detail| detail.state_index == -1 }
 
-        last_detail
+        current_detail
       end
 
       # @param [Conflict] conflict to be unwound from
