@@ -37,13 +37,6 @@ module Molinillo
       # @attr [Array] possibilities the possibilities
       PossibilitySet = Struct.new(:dependencies, :possibilities)
 
-      # Details of the state to unwind to when a conflict occurs, and the cause of the unwind
-      # @attr [Integer] state_index the index of the state to unwind to
-      # @attr [Object] requirement the requirement we intend to relax by unwinding
-      # @attr [Symbol] relationship the relationship between the new state and the requirement
-      # @attr [Array] conflicting_requirements the requirements that combined to cause the conflict
-      UnwindDetails = Struct.new(:state_index, :requirement, :relationship, :conflicting_requirements)
-
       class PossibilitySet
         # String representation of the possibility set, for debugging
         def to_s
@@ -53,6 +46,49 @@ module Molinillo
         # @return [Object] most up-to-date dependency in the possibility set
         def latest_version
           possibilities.last
+        end
+      end
+
+      # Details of the state to unwind to when a conflict occurs, and the cause of the unwind
+      # @attr [Integer] state_index the index of the state to unwind to
+      # @attr [Object] state_requirement the requirement of the state we're unwinding to
+      # @attr [Array] requirement_tree for the requirement we're relaxing
+      # @attr [Array] conflicting_requirements the requirements that combined to cause the conflict
+      # @attr [Array] requirement_trees for the conflict
+      UnwindDetails = Struct.new(
+        :state_index,
+        :state_requirement,
+        :requirement_tree,
+        :conflicting_requirements,
+        :requirement_trees
+      )
+
+      class UnwindDetails
+        include Comparable
+
+        # We compare UnwindDetails when choosing which state to unwind to. If
+        # two options have the same state_index we prefer the one most
+        # removed from a requirement that caused the conflict. Both options
+        # would unwind to the same state, but a `grandparent` option will
+        # filter out fewer of its possibilities after doing so - where a state
+        # is both a `parent` and a `grandparent` to requirements that have
+        # caused a conflict this is the correct behaviour.
+        # @param [UnwindDetail] other UnwindDetail to be compared
+        # @return [Integer] integer specifying ordering
+        def <=>(other)
+          if state_index > other.state_index
+            1
+          elsif state_index == other.state_index
+            reversed_requirement_tree_index <=> other.reversed_requirement_tree_index
+          else
+            -1
+          end
+        end
+
+        # @return [Integer] index of state requirement in reversed requirement tree
+        #    (the conflicting requirement itself will be at position 0)
+        def reversed_requirement_tree_index
+          requirement_tree.reverse.index(state_requirement)
         end
       end
 
@@ -266,14 +302,17 @@ module Molinillo
         unwind_details = existing_unwind_details || UnwindDetails.new(-1, nil, nil, [])
 
         binding_requirements = binding_requirements_for_conflict(conflict)
+        trees = []
         binding_requirements.reverse_each do |r|
+          partial_tree = [r]
+          trees << partial_tree
           # If this requirement has alternative possibilities, check if any would
           # satisfy the other requirements that created this conflict
           requirement_state = find_state_for(r)
           candidate_index = states.index(requirement_state)
-          next if candidate_index && candidate_index < unwind_details.state_index
+          next if candidate_index && UnwindDetails.new(candidate_index, r, partial_tree) < unwind_details
           if conflict_fixing_possibilities?(requirement_state, binding_requirements)
-            unwind_details = UnwindDetails.new(candidate_index, r, :primary, binding_requirements)
+            unwind_details = UnwindDetails.new(candidate_index, r, partial_tree, binding_requirements, trees)
             return unwind_details if unwind_details.state_index == maximal_index
 
             next # No need to look at this requirement's parent, as it couldn't have a higher index
@@ -282,30 +321,33 @@ module Molinillo
           # Next, look at the parent of this requirement, and check if the requirement
           # could have been avoided if an alternative PossibilitySet had been chosen
           parent_r = parent_of(r)
+          partial_tree.unshift(parent_r) unless parent_r.nil?
           requirement_state = find_state_for(parent_r)
           candidate_index = states.index(requirement_state)
-          next unless candidate_index && candidate_index >= unwind_details.state_index
-          if requirement_state && requirement_state.possibilities.any? { |set| !set.dependencies.include?(r) }
-            if candidate_index > unwind_details.state_index || unwind_details.relationship == :primary
-              unwind_details = UnwindDetails.new(candidate_index, r, :parent, binding_requirements)
-            end
+          next unless candidate_index
+          next unless UnwindDetails.new(candidate_index, parent_r, partial_tree) > unwind_details
+          if requirement_state.possibilities.any? { |set| !set.dependencies.include?(r) }
+            unwind_details = UnwindDetails.new(candidate_index, parent_r, partial_tree, binding_requirements, trees)
 
             next # No need to look at this requirement's grandparent, as it couldn't have a higher index
           end
 
           # Finally, look at the grandparent and up of this requirement, looking
-          # for any possibilities at all - we're now too far removed from the conflict
-          # to know how any such possibility will affect it, so just have to try it
+          # for any possibilities that wouldn't create their parent requirement
           grandparent_r = parent_of(parent_r)
           until grandparent_r.nil?
+            partial_tree.unshift(grandparent_r)
             requirement_state = find_state_for(grandparent_r)
             candidate_index = states.index(requirement_state)
-            break unless candidate_index && candidate_index >= unwind_details.state_index
-            if requirement_state && !requirement_state.possibilities.empty?
-              unwind_details = UnwindDetails.new(candidate_index, r, :grandparent, binding_requirements)
+            break unless candidate_index
+            break unless UnwindDetails.new(candidate_index, grandparent_r, partial_tree) > unwind_details
+            if requirement_state.possibilities.any? { |set| !set.dependencies.include?(parent_r) }
+              unwind_details =
+                UnwindDetails.new(candidate_index, grandparent_r, partial_tree, binding_requirements, trees)
               break
             end
-            grandparent_r = parent_of(grandparent_r)
+            parent_r = grandparent_r
+            grandparent_r = parent_of(parent_r)
           end
         end
 
@@ -340,10 +382,10 @@ module Molinillo
       def filter_possibilities_after_unwind(unwind_details)
         return unless state && !state.possibilities.empty?
 
-        case unwind_details.relationship
-        when :primary then filter_possibilities_for_primary_unwind(unwind_details)
-        when :parent then filter_possibilities_for_parent_unwind(unwind_details)
-        else nil # We can't do any filtering for grandparent relationships
+        if unwind_details.conflicting_requirements.include?(unwind_details.state_requirement)
+          filter_possibilities_for_primary_unwind(unwind_details)
+        else
+          filter_possibilities_for_parent_unwind(unwind_details)
         end
       end
 
@@ -368,13 +410,17 @@ module Molinillo
         end
       end
 
-      # Filter's a state's possibilities to remove any that would create a
-      # specific requirement in the conflict we've just rewound from
+      # Filter's a state's possibilities to remove any that would (eventually)
+      # create a requirement in the conflict we've just rewound from
       # @param [UnwindDetails] details of the conflict just unwound from
       # @return [void]
       def filter_possibilities_for_parent_unwind(unwind_details)
         state.possibilities.reject! do |possibility_set|
-          possibility_set.dependencies.include?(unwind_details.requirement)
+          requirements_to_avoid = unwind_details.requirement_trees.map do |tree|
+            index = tree.index(unwind_details.state_requirement)
+            tree[index + 1] if index
+          end.compact
+          (requirements_to_avoid - possibility_set.dependencies).empty?
         end
       end
 
