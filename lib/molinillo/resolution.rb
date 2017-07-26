@@ -280,10 +280,11 @@ module Molinillo
           end
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
+          state.unused_unwind_options = unwind_options
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
-          state.unused_unwind_options = unwind_options.reject { |uw| uw.state_index >= index }
+          state.unused_unwind_options.reject! { |uw| uw.state_index >= index }
         end
       end
 
@@ -428,11 +429,16 @@ module Molinillo
       # @param [UnwindDetails] details of the conflict just unwound from
       # @return [void]
       def filter_possibilities_for_parent_unwind(unwind_details)
-        state.possibilities.reject! do |possibility_set|
-          requirements_to_avoid = unwind_details.requirement_trees.map do |tree|
-            index = tree.index(unwind_details.state_requirement)
+        unwinds = [unwind_details] + unused_unwind_options.select { |uw| uw.state_index == unwind_details.state_index }
+
+        requirements_to_avoid = Compatibility.flat_map(unwinds.uniq) do |unwind|
+          unwind.requirement_trees.map do |tree|
+            index = tree.index(unwind.state_requirement)
             tree[index + 1] if index
           end.compact
+        end
+
+        state.possibilities.reject! do |possibility_set|
           (requirements_to_avoid - possibility_set.dependencies).empty?
         end
       end
