@@ -15,6 +15,8 @@ module Molinillo
       # @attr [Array<Array<Object>>] requirement_trees the different requirement
       #   trees that led to every requirement for the conflicting name.
       # @attr [{String=>Object}] activated_by_name the already-activated specs.
+      # @attr [Object] underlying_error an error that has occurred during resolution, and
+      #    will be raised at the end of it if no resolution is found.
       Conflict = Struct.new(
         :requirement,
         :requirements,
@@ -23,7 +25,7 @@ module Molinillo
         :locked_requirement,
         :requirement_trees,
         :activated_by_name,
-        :root_error
+        :underlying_error
       )
 
       class Conflict
@@ -180,16 +182,14 @@ module Molinillo
       # @return [void]
       def process_topmost_state
         if possibility
-          begin
-            attempt_to_activate
-          rescue CircularDependencyError => e
-            create_conflict(e)
-            unwind_for_conflict until possibility && state.is_a?(DependencyState)
-          end
+          attempt_to_activate
         else
-          create_conflict if state.is_a? PossibilityState
-          unwind_for_conflict until possibility && state.is_a?(DependencyState)
+          create_conflict
+          unwind_for_conflict
         end
+      rescue CircularDependencyError => underlying_error
+        create_conflict(underlying_error)
+        unwind_for_conflict
       end
 
       # @return [Object] the current possibility that the resolution is trying
@@ -236,17 +236,23 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
-          raise VersionConflict.new(c, specification_provider) unless state
-          unless state
-            error = c.values.map(&:root_error).detect {|e| ! e.nil? }
-            raise error || VersionConflict.new(c)
-          end
+          raise_error_unless_state(c)
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           filter_possibilities_after_unwind(details_for_unwind)
           index = states.size - 1
           @parents_of.each { |_, a| a.reject! { |i| i >= index } }
         end
+      end
+
+      # Raises a VersionConflict error, or any underlying error, if there is no
+      # current state
+      # @return [void]
+      def raise_error_unless_state(conflicts)
+        return if state
+
+        error = conflicts.values.map(&:underlying_error).compact.first
+        raise error || VersionConflict.new(conflicts, specification_provider)
       end
 
       # @return [UnwindDetails] Details of the nearest index to which we could unwind
@@ -393,9 +399,19 @@ module Molinillo
       #    conflict to occur.
       def binding_requirements_for_conflict(conflict)
         return [conflict.requirement] if conflict.possibility.nil?
-        possibilities = search_for(conflict.requirement)
 
         possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
+
+        # When there’s a `CircularDependency` error the conflicting requirement
+        # (the one causing the circular) won’t be `conflict.requirement`
+        # (which won’t be for the right state, because we won’t have created it,
+        # because it’s circular).
+        # We need to make sure we have that requirement in the conflict’s list,
+        # otherwise we won’t be able to unwind properly, so we just return all
+        # the requirements for the conflict.
+        return possible_binding_requirements if conflict.underlying_error
+
+        possibilities = search_for(conflict.requirement)
 
         # If all the requirements together don't filter out all possibilities,
         # then the only two requirements we need to consider are the initial one
@@ -463,7 +479,7 @@ module Molinillo
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
-      def create_conflict(root_error=nil)
+      def create_conflict(underlying_error = nil)
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 
@@ -486,7 +502,7 @@ module Molinillo
           locked_requirement,
           requirement_trees,
           activated_by_name,
-          root_error
+          underlying_error
         )
       end
 
