@@ -466,7 +466,8 @@ module Molinillo
       # @return [Object] the requirement that led to a version of a possibility
       #   with the given name being activated.
       def requirement_for_existing_name(name)
-        return nil unless activated.vertex_named(name).payload
+        return nil unless vertex = activated.vertex_named(name)
+        return nil unless vertex.payload
         states.find { |s| s.name == name }.requirement
       end
 
