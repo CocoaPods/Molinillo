@@ -46,39 +46,50 @@ get there again. Unwind too little and resolution will be extremely slow - we'll
 repeatedly hit the same conflict, processing many unnecessary iterations before
 getting to a branch that avoids it.
 
-To unwind the optimal amount, we consider each of the conflicts that have
-determined our current state, and the requirements that led to them. For each
-conflict we:
+To unwind the optimal amount, we consider the current conflict, along with all
+the previous unwinds that have determined our current state.
 
-1. Discard any requirements that aren't "binding" - that is, any that are
-unnecessary to cause the current conflict. We do this by looping over through
-the requirements in reverse order to how they were added, removing each one if
-it is not necessary
-2. Loop through the array of binding requirements, looking for the highest index
-state that has possibilities that may still lead to a resolution. For each
-requirement:
-  - check if the DependencyState responsible for the requirement has alternative
-  possibilities that would satisfy all the other requirements. If so, the index
-  of that state becomes our new candidate index (if it is higher than the
-  current one)
-  - if no alternative possibilities existed for that state responsible for the
-  requirement, check the state's parent. Look for alternative possibilities that
-  parent state could take that would mean the requirement would never have been
-  created. If any exist, that parent state's index becomes our candidate index
-  (if it is higher than the current one)
-  - if no alternative possibilities for the parent of the state responsible for
-  the requirement, look at that state's parent and so forth, until we reach a
-  state with no alternative possibilities and no parents
-
-We then take the highest index found for any of the past conflicts, unwind to
-it, and prune out any possibilities on it that we now know would lead to the
-same conflict we just encountered. If no index to unwind to is found for any
-of the conflicts that determine our state, we throw a VersionConflict error, as
-resolution must not be possible.
-
-Finally, once an unwind has taken place, we use the additional information from
-the conflict we unwound from to filter the possibilities for the sate we have
-unwound to in `filter_possibilities_after_unwind`.
+1. First, consider the current conflict as follows:
+  - Find the earliest (lowest index) set of requirements which combine to cause
+  the conflict. Any non-binding requirements can be ignored, as removing them
+  would not resolve the current onflict
+  - For each binding requirement, find all the alternative possibilities that
+  would relax the requirement:
+    - the requirement's DependencyState might have alternative possibilities
+    that would satisfy all the other requirements
+    - the parent of the requirement might have alternative possibilities that
+    would prevent the requirement existing
+    - the parent of the parent of the requirement might have alternative
+    possibilities that would prevent the parent, and thus the requirement,
+    from existing
+    - etc., etc.
+  - Group all of the above possibilities into an array, and pick the one with
+  the highest index (i.e., the smallest rewind) as our candidate rewind
+2. Next, consider any previous unwinds that were not executed (because a
+different, smaller unwind was chosen instead):
+  - Ignore any previously unused unwinds that would now unwind further than the
+  highest index found in (1), if any
+  - For the remaining unused unwind, check whether the unwind has a chance of
+  preventing us encountering the current conflict. For this to be the case, the
+  unwind's requirement tree must overlap with an element of one of the
+  requirement trees for the current conflict
+    - TODO: I _think_ we can make this much stronger: the state that was rewound
+    to instead of opting for this unwind must be in the requirement tree for the
+    current conflict
+  - If any such unwinds exist, use the one with the highest index (smallest
+  unwind) instead of the one found in (1)
+3a. If no possible unwind was found in (1) and (2), raise a VersionConflict
+error as resolution is not possible.
+3b. Filter the state that we're unwinding to, in order to remove any
+possibilities we know will result in a conflict. Consider all possible unwinds
+to the chosen state (there may be several, amasssed from previous unused
+unwinds for different conflicts) when doing this filtering - only
+possibilities that will certainly result in *all* of those conflicts can be
+filtered out as having no chance of resolution
+4. Update the list of unused unwinds:
+  - Add all possible unwinds for the current conflict
+  - Remove all unwinds to a state greater than or equal to the chosen unwind
+5. Go to #6 in the main loop
 
 ## Specification Provider
 
