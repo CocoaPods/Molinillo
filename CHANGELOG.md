@@ -25,6 +25,11 @@
 
 ##### Bug Fixes
 
+* Only raise CircularDependency errors if they prevent resolution.
+  [Ian Young](https://github.com/iangreenleaf)
+  [Grey Baker](https://github.com/greysteil)
+  [#78](https://github.com/CocoaPods/Molinillo/pull/78)
+
 * Consider additional (binding) requirements that caused a conflict when
   determining which state to unwind to. Previously, in some cases Molinillo
   would erroneously throw a VersionConflict error if multiple requirements
