@@ -689,7 +689,8 @@ module Molinillo
       def attempt_to_filter_existing_spec(vertex)
         filtered_set = filtered_possibility_set(vertex)
         if !filtered_set.possibilities.empty? &&
-            (vertex.payload.dependencies == dependencies_for(possibility.latest_version))
+            (vertex.payload.dependencies == dependencies_for(possibility.latest_version) ||
+             vertex.payload.possibilities == possibility.possibilities)
           activated.set_payload(name, filtered_set)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
