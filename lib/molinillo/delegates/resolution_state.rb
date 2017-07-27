@@ -46,6 +46,12 @@ module Molinillo
         current_state = state || Molinillo::ResolutionState.empty
         current_state.conflicts
       end
+
+      # (see Molinillo::ResolutionState#unused_unwind_options)
+      def unused_unwind_options
+        current_state = state || Molinillo::ResolutionState.empty
+        current_state.unused_unwind_options
+      end
     end
   end
 end

@@ -108,12 +108,10 @@ module Molinillo
     end
 
     def ignore?(index_class)
-      if [BerkshelfIndex, ReverseBundlerIndex, RandomSortIndex].include?(index_class) &&
-          name == 'can resolve when two specs have the same dependencies and swapping happens'
+      if index_class == RandomSortIndex && name == 'resolves a conflict which requires non-trivial unwinding'
 
-        # These indexes don't do a great job sorting, and segiddins has been
-        # unable to get the test passing with the bad sort without breaking
-        # other specs
+        # This index occassionally finds orders that are *incredibly* slow to resolve,
+        # and greysteil hasn't found a way to speed it up yet.
         return true
       end
 
