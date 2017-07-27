@@ -5,7 +5,7 @@
 ##### Enhancements
 
 * Speed up dependency resolution by considering multiple possible versions of a
-  dependency at once, grouped its sub-dependencies. Groups are then filtered as
+  dependency at once, grouped by sub-dependencies. Groups are then filtered as
   additional requirements are introduced. If a group's sub-dependencies cause
   conflicts the entire group can be discarded, which reduces the number of
   possibilities that have to be tested to find a resolution.
@@ -24,6 +24,14 @@
   [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
+
+* Improve unwinding by considering previous conflicts for the same dependency
+  when deciding which state to unwind to. Previously, prior conflicts were
+  stored in a hash indexed by their name, with only the most recent conflict
+  stored for each dependency. With this fix, Molinillo can resolve anything
+  that's thrown at it. 🎉
+  [Grey Baker](https://github.com/greysteil)
+  [#73](https://github.com/CocoaPods/Molinillo/pull/73)
 
 * Only raise CircularDependency errors if they prevent resolution.
   [Ian Young](https://github.com/iangreenleaf)
