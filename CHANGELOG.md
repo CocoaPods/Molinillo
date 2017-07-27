@@ -2,20 +2,26 @@
 
 ## Master
 
+##### Breaking
+
+* Objects returned by `dependencies_for` and passed to `resolve` must properly implement
+  both `==` and `eql?`, such that they return `true` when they exhibit the same behavior in
+  `requirement_satisfied_by?`.  
+
 ##### Enhancements
 
 * Speed up dependency resolution by considering multiple possible versions of a
   dependency at once, grouped by sub-dependencies. Groups are then filtered as
   additional requirements are introduced. If a group's sub-dependencies cause
   conflicts the entire group can be discarded, which reduces the number of
-  possibilities that have to be tested to find a resolution.
+  possibilities that have to be tested to find a resolution.  
   [Grey Baker](https://github.com/greysteil)
   [Samuel Giddins](https://github.com/segiddins)
   [#69](https://github.com/CocoaPods/Molinillo/pull/69)
 
 * Check for locked requirements when generating a new state's possibilities
   array, and reduce possibilities set accordingly. Reduces scope for erroneous
-  VersionConflict errors.
+  VersionConflict errors.  
   [Grey Baker](https://github.com/greysteil)
   [#67](https://github.com/CocoaPods/Molinillo/pull/67)
 
@@ -29,11 +35,11 @@
   when deciding which state to unwind to. Previously, prior conflicts were
   stored in a hash indexed by their name, with only the most recent conflict
   stored for each dependency. With this fix, Molinillo can resolve anything
-  that's thrown at it. 🎉
+  that's thrown at it. 🎉  
   [Grey Baker](https://github.com/greysteil)
   [#73](https://github.com/CocoaPods/Molinillo/pull/73)
 
-* Only raise CircularDependency errors if they prevent resolution.
+* Only raise CircularDependency errors if they prevent resolution.  
   [Ian Young](https://github.com/iangreenleaf)
   [Grey Baker](https://github.com/greysteil)
   [#78](https://github.com/CocoaPods/Molinillo/pull/78)
@@ -41,14 +47,14 @@
 * Consider additional (binding) requirements that caused a conflict when
   determining which state to unwind to. Previously, in some cases Molinillo
   would erroneously throw a VersionConflict error if multiple requirements
-  combined to cause a conflict.
+  combined to cause a conflict.  
   [Grey Baker](https://github.com/greysteil)
   [#72](https://github.com/CocoaPods/Molinillo/pull/72) 
 
 * Consider previous conflicts when determining the state to unwind to. If a
   previous conflict, for a different dependency, is the reason we ended up with
   the current conflict, then unwinding to a state that would not have caused
-  that conflict could prevent the current one, too.
+  that conflict could prevent the current one, too.  
   [Grey Baker](https://github.com/greysteil)
   [#72](https://github.com/CocoaPods/Molinillo/pull/72)
 
