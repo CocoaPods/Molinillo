@@ -4,7 +4,9 @@
 
 ##### Enhancements
 
-* None.  
+* Added a `SpecificationProvider#requirements_equal?` method, so that requirement
+  objects that implement `==` based upon extraneous attributes can still be used.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
