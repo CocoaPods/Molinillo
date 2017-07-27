@@ -286,6 +286,43 @@ Molinillo could not find compatible versions for possibility named "json":
 
         expect(resolved.map(&:payload).map(&:to_s).sort).to include('pastel (0.6.1)', 'tty-table (0.6.0)')
       end
+
+      context 'can resolve when two resolutions are equally valid' do
+        INDICES.each do |index_class|
+          it "with #{index_class.name.split('::').last}" do
+            index = index_class.new(
+              'a' => [
+                TestSpecification.new('name' => 'a', 'version' => '1', 'dependencies' => { 'c' => '2', 'd' => '1' }),
+                TestSpecification.new('name' => 'a', 'version' => '2', 'dependencies' => { 'c' => '1', 'd' => '2' }),
+              ],
+              'b' => [
+                TestSpecification.new('name' => 'b', 'version' => '1', 'dependencies' => { 'c' => '1', 'd' => '2' }),
+                TestSpecification.new('name' => 'b', 'version' => '2', 'dependencies' => { 'c' => '2', 'd' => '1' }),
+              ],
+              'c' => [
+                TestSpecification.new('name' => 'c', 'version' => '1'),
+                TestSpecification.new('name' => 'c', 'version' => '2'),
+              ],
+              'd' => [
+                TestSpecification.new('name' => 'd', 'version' => '1'),
+                TestSpecification.new('name' => 'd', 'version' => '2'),
+              ]
+            )
+
+            requirements = [
+              Gem::Dependency.new('a'),
+              Gem::Dependency.new('b')
+            ]
+
+            @resolver = described_class.new(index, TestUI.new)
+            resolved = @resolver.resolve(requirements, DependencyGraph.new)
+
+            expect(resolved.map(&:payload).map(&:to_s).sort).
+              to eq(['a (2)', 'b (1)', 'c (1)', 'd (2)']).
+              or eq(['a (1)', 'b (2)', 'c (2)', 'd (1)'])
+          end
+        end
+      end
     end
   end
 end
