@@ -61,6 +61,11 @@ module Molinillo
         end
       end
 
+      # (see Molinillo::SpecificationProvider#requirements_equal?)
+      def requirements_equal?(lhs, rhs)
+        specification_provider.requirements_equal?(lhs, rhs)
+      end
+
       private
 
       # Ensures any raised {NoSuchDependencyError} has its

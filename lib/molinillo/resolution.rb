@@ -544,7 +544,7 @@ module Molinillo
         # array *on each iteration*.
         binding_requirements = possible_binding_requirements.dup
         possible_binding_requirements.reverse_each do |req|
-          next if req == conflict.requirement
+          next if requirements_equal?(req, conflict.requirement)
           unless binding_requirement_in_set?(req, binding_requirements, possibilities)
             binding_requirements -= [req]
           end
@@ -585,7 +585,7 @@ module Molinillo
       #   `requirement`.
       def find_state_for(requirement)
         return nil unless requirement
-        states.find { |i| requirement == i.requirement }
+        states.find { |i| requirements_equal?(requirement, i.requirement) }
       end
 
       # @return [Conflict] a {Conflict} that reflects the failure to activate
@@ -689,7 +689,7 @@ module Molinillo
       def attempt_to_filter_existing_spec(vertex)
         filtered_set = filtered_possibility_set(vertex)
         if !filtered_set.possibilities.empty? &&
-            (vertex.payload.dependencies == dependencies_for(possibility.latest_version))
+            requirements_arrays_equal?(vertex.payload.dependencies, dependencies_for(possibility.latest_version))
           activated.set_payload(name, filtered_set)
           new_requirements = requirements.dup
           push_state_for_requirements(new_requirements, false)
@@ -698,6 +698,16 @@ module Molinillo
           debug(depth) { "Unsatisfied by existing spec (#{vertex.payload})" }
           unwind_for_conflict
         end
+      end
+
+      # @return [Boolean] whether the two requirement arrays are equal
+      def requirements_arrays_equal?(lhs, rhs)
+        return false unless lhs.size == rhs.size
+        lhs.each_with_index do |l, i|
+          r = rhs[i]
+          return false unless requirements_equal?(l, r)
+        end
+        true
       end
 
       # Generates a filtered version of the existing vertex's `PossibilitySet` using the
@@ -763,7 +773,7 @@ module Molinillo
         new_requirement = nil
         loop do
           new_requirement = new_requirements.shift
-          break if new_requirement.nil? || states.none? { |s| s.requirement == new_requirement }
+          break if new_requirement.nil? || states.none? { |s| requirements_equal?(s.requirement, new_requirement) }
         end
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = possibilities_for_requirement(new_requirement)

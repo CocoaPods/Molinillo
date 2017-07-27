@@ -97,5 +97,16 @@ module Molinillo
     def allow_missing?(dependency)
       false
     end
+
+    # Returns whether two requirements are equal.
+    # This equality should be based solely upon what is returned in
+    # #search_for and #requirement_satisfied_by?.
+    #
+    # @param [Object] lhs
+    # @param [Object] rhs
+    # @return [Boolean] whether the requirements are equal
+    def requirements_equal?(lhs, rhs)
+      lhs == rhs
+    end
   end
 end
