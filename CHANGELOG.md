@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.6.0 (2017-07-27)
 
 ##### Breaking
 
