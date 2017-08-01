@@ -8,7 +8,9 @@
 
 ##### Bug Fixes
 
-* None.  
+* Allow the set of dependencies for a given possibility to change over time,
+  fixing a regression in 0.6.0.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 
 ## 0.6.0 (2017-07-27)
