@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Insist each PossibilitySet contains contiguous versions. Fixes a regression
+  where an older dependency version with identical sub-dependencies to the
+  latest version may be preferred over the second-latest version.
+  [Grey Baker](https://github.com/greysteil)
 
 
 ## 0.6.1 (2017-08-01)
