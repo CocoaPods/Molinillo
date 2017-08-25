@@ -10,7 +10,7 @@
 
 * Insist each PossibilitySet contains contiguous versions. Fixes a regression
   where an older dependency version with identical sub-dependencies to the
-  latest version may be preferred over the second-latest version.
+  latest version may be preferred over the second-latest version.  
   [Grey Baker](https://github.com/greysteil)
 
 
