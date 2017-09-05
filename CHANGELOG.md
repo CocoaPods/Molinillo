@@ -8,7 +8,12 @@
 
 ##### Bug Fixes
 
-* None.  
+* Handle the case where an unwind occurs to a requirement that directly caused
+  the current conflict but could also have been unwound to directly from
+  previous conflicts. In this case, filtering must not remove any possibilities
+  that could have avoided the previous conflicts (even if they would not avoid
+  the current one).  
+  [Grey Baker](https://github.com/greysteil)
 
 
 ## 0.6.2 (2017-08-25)
