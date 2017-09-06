@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    molinillo (0.6.2)
+    molinillo (0.6.3)
 
 GEM
   remote: https://rubygems.org/
@@ -99,4 +99,4 @@ DEPENDENCIES
   rubocop
 
 BUNDLED WITH
-   1.15.4
+   1.16.0.pre.1
