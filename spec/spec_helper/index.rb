@@ -80,6 +80,7 @@ module Molinillo
         name = name_for(dependency)
         [
           activated.vertex_named(name).payload ? 0 : 1,
+          activated.vertex_named(name).root? ? 0 : 1,
           amount_constrained(dependency),
           conflicts[name] ? 0 : 1,
           activated.vertex_named(name).payload ? 0 : search_for(dependency).count,
