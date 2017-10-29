@@ -4,7 +4,10 @@
 
 ##### Enhancements
 
-* None.  
+* Reduce memory usage during resolution by making the `Vertex#requirements`
+  array unique.  
+  [Grey Baker](https://github.com/greysteil)
+  [Jan Krutisch](https://github.com/halfbyte)
 
 ##### Bug Fixes
 
