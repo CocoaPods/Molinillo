@@ -95,7 +95,8 @@ module Molinillo
         if all <= 1
           all - all_leq_one_penalty
         else
-          search = search_for(dependency).size
+          search = search_for(dependency)
+          search = dependency.prerelease? ? search.count : search.count { |s| !s.version.prerelease? }
           search - all
         end
       end
