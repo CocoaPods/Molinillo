@@ -4,7 +4,8 @@
 
 ##### Enhancements
 
-* None.  
+* Improve performance of recursive vertex methods.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
