@@ -130,10 +130,17 @@ module Molinillo
       # dependency graph?
       # @return true iff there is a path following edges within this {#graph}
       def path_to?(other)
-        equal?(other) || successors.any? { |v| v.path_to?(other) }
+        _path_to?(other)
       end
 
       alias descendent? path_to?
+
+      def _path_to?(other, visited = Set.new)
+        return false unless visited.add?(self)
+        return true if equal?(other)
+        successors.any? { |v| v._path_to?(other, visited) }
+      end
+      protected :_path_to?
 
       # Is there a path from `other` to `self` following edges in the
       # dependency graph?
