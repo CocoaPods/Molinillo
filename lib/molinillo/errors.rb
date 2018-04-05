@@ -18,7 +18,7 @@ module Molinillo
     # @param [Array<Object>] required_by @see {#required_by}
     def initialize(dependency, required_by = [])
       @dependency = dependency
-      @required_by = required_by
+      @required_by = required_by.uniq
       super()
     end
 
