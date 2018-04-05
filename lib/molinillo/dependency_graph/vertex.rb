@@ -135,6 +135,9 @@ module Molinillo
 
       alias descendent? path_to?
 
+      # @param [Vertex] other the vertex to check if there's a path to
+      # @param [Set<Vertex>] visited the vertices of {#graph} that have been visited
+      # @return [Boolean] whether there is a path to `other` from `self`
       def _path_to?(other, visited = Set.new)
         return false unless visited.add?(self)
         return true if equal?(other)
