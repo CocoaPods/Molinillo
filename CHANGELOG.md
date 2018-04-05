@@ -4,7 +4,8 @@
 
 ##### Enhancements
 
-* None.  
+* Improve performance of `Vertex#path_to?`.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
