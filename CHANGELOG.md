@@ -7,6 +7,11 @@
 * Improve performance of `Vertex#path_to?`.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Allow customization of string used to say that a version conflict has occurred
+  for a particular name by passing in the `:incompatible_version_message_for_conflict` 
+  key when constructing a version conflict message with trees.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * None.  
