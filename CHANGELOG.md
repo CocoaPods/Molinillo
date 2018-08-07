@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.6.6 (2018-08-07)
 
 ##### Enhancements
 
