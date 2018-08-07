@@ -52,29 +52,31 @@ begin
 
     files = FileList['lib/**/*.rb']
 
-    out, err = Open3.popen3('ruby', '-w', '-Ilib') do |stdin, stdout, stderr, _wait_thr|
-      files.each do |file|
-        stdin.puts "require '#{file.gsub(%r{(^lib/|\.rb$)}, '')}'"
-      end
-      stdin.close
-
-      [stdout, stderr].map do |io|
-        chunk_size = 16_384
-        select_timeout = 0.02
-        buffer = []
-        next '' if io.closed? || io.eof?
-        # IO.select cannot be used here due to the fact that it
-        # just does not work on windows
-        loop do
-          begin
-            IO.select([io], nil, nil, select_timeout)
-            break if io.eof? # stop raising :-(
-            buffer << io.readpartial(chunk_size)
-          rescue EOFError
-            break
-          end
+    out, err = Bundler.with_original_env do
+      Open3.popen3(Gem.ruby, '-w', '-Ilib') do |stdin, stdout, stderr, _wait_thr|
+        files.each do |file|
+          stdin.puts "require '#{file.gsub(%r{(^lib/|\.rb$)}, '')}'"
         end
-        buffer.join.strip
+        stdin.close
+
+        [stdout, stderr].map do |io|
+          chunk_size = 16_384
+          select_timeout = 0.02
+          buffer = []
+          next '' if io.closed? || io.eof?
+          # IO.select cannot be used here due to the fact that it
+          # just does not work on windows
+          loop do
+            begin
+              IO.select([io], nil, nil, select_timeout)
+              break if io.eof? # stop raising :-(
+              buffer << io.readpartial(chunk_size)
+            rescue EOFError
+              break
+            end
+          end
+          buffer.join.strip
+        end
       end
     end
 
