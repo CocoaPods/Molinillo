@@ -33,7 +33,7 @@ This stack-based approach is used because backtracking (also known as *unwinding
 13. If there is an existing, `activated` vertex for the dependency, `attempt_to_filter_existing_spec`
   - This filters the contents of the existing vertex's `PossibilitySet` by the current state's `requirement`
   - If any possibilities remain within the `PossibilitySet`, it updates the activated vertex's payload with the new, filtered state and pushes a new `DependencyState`
-  - If no possibilities remain within the `PossibilitySet` after filtering, or if the current state's `PossibilitySet` had a different set of sub-dependecy requirements to the existing vertex's `PossibilitySet`, `create_conflict` and `unwind_for_conflict`, back to the last `DependencyState` that has a chance to not generate a conflict. Go to #6
+  - If no possibilities remain within the `PossibilitySet` after filtering, or if the current state's `PossibilitySet` had a different set of sub-dependency requirements to the existing vertex's `PossibilitySet`, `create_conflict` and `unwind_for_conflict`, back to the last `DependencyState` that has a chance to not generate a conflict. Go to #6
 15. Terminate with the topmost state's dependency graph when there are no more requirements left
 16. For each vertex with a payload of allowable versions for this resolution (i.e., a `PossibilitySet`), pick a single specific version.
 
@@ -52,7 +52,7 @@ the previous unwinds that have determined our current state.
 1. First, consider the current conflict as follows:
   - Find the earliest (lowest index) set of requirements which combine to cause
   the conflict. Any non-binding requirements can be ignored, as removing them
-  would not resolve the current onflict
+  would not resolve the current conflict
   - For each binding requirement, find all the alternative possibilities that
   would relax the requirement:
     - the requirement's DependencyState might have alternative possibilities
@@ -79,7 +79,7 @@ different, smaller unwind was chosen instead):
 error as resolution is not possible.
 3b. Filter the state that we're unwinding to, in order to remove any
 possibilities we know will result in a conflict. Consider all possible unwinds
-to the chosen state (there may be several, amasssed from previous unused
+to the chosen state (there may be several, amassed from previous unused
 unwinds for different conflicts) when doing this filtering - only
 possibilities that will certainly result in *all* of those conflicts can be
 filtered out as having no chance of resolution
