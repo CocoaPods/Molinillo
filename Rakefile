@@ -50,6 +50,8 @@ begin
   task :no_warnings do
     next if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
 
+    require 'open3'
+
     files = FileList['lib/**/*.rb']
 
     out, err = Bundler.with_original_env do
