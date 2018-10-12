@@ -9,7 +9,7 @@ group :development do
   gem 'rspec'
 
   # Ruby 1.8.7 fixes
-  gem 'json_pure', '~> 1.8'
+  gem 'json_pure', '~> 2.1'
   gem 'mime-types', '< 2.0'
 
   install_if RUBY_VERSION >= '2.0.0' && Bundler.current_ruby.mri? do
