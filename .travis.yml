@@ -28,7 +28,7 @@ env:
 
 install:
   - gem update --system 2.7.8
-  - gem install bundler -v ">= 1.10"
+  - gem install bundler -v "~> 1.17"
   - rake bootstrap
 
 script: bundle exec rake
