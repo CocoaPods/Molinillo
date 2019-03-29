@@ -124,6 +124,7 @@ module Molinillo
       dot.join("\n")
     end
 
+    # @param [DependencyGraph] other
     # @return [Boolean] whether the two dependency graphs are equal, determined
     #   by a recursive traversal of each {#root_vertices} and its
     #   {Vertex#successors}
