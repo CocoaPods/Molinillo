@@ -207,7 +207,7 @@ module Molinillo
       def start_resolution
         @started_at = Time.now
 
-        handle_missing_or_push_dependency_state(initial_state)
+        push_initial_state
 
         debug { "Starting resolution (#{@started_at})\nUser-requested dependencies: #{original_requested}" }
         resolver_ui.before_resolution
@@ -273,10 +273,10 @@ module Molinillo
         states.last
       end
 
-      # Creates the initial state for the resolution, based upon the
+      # Creates and pushes the initial state for the resolution, based upon the
       # {#requested} dependencies
-      # @return [DependencyState] the initial state for the resolution
-      def initial_state
+      # @return [void]
+      def push_initial_state
         graph = DependencyGraph.new.tap do |dg|
           original_requested.each do |requested|
             vertex = dg.add_vertex(name_for(requested), nil, true)
@@ -285,18 +285,7 @@ module Molinillo
           dg.tag(:initial_state)
         end
 
-        requirements = sort_dependencies(original_requested, graph, {})
-        initial_requirement = requirements.shift
-        DependencyState.new(
-          initial_requirement && name_for(initial_requirement),
-          requirements,
-          graph,
-          initial_requirement,
-          possibilities_for_requirement(initial_requirement, graph),
-          0,
-          {},
-          []
-        )
+        push_state_for_requirements(original_requested, true, graph)
       end
 
       # Unwinds the states stack because a conflict has been encountered
