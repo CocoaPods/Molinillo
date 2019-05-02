@@ -11,8 +11,6 @@ addons:
    repo_token: c98a4eeafdd6a179fd24c8553ec8445c76027f7501348b22e054e7b360fba034
 
 rvm:
-  - 1.8.7
-  - 1.9.3
   - 2.0.0
   - 2.3.8
   - 2.4.6

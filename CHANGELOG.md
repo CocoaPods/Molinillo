@@ -2,6 +2,12 @@
 
 ## Master
 
+##### Breaking
+
+* Support for Ruby 1.8.7 and 1.9.3 has been dropped, the minimum supported
+  Ruby version is now 2.0.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Enhancements
 
 * None.  
