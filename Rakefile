@@ -82,7 +82,12 @@ begin
       end
     end
 
-    raise "Molinillo should contain no ruby warnings:\n\nout:\n#{out}\nerr:\n#{err}" unless out.empty? && err.empty?
+    err = err.sub(
+      %r{.+rubygems/version\.rb:\d+: warning: deprecated Object#=~ is called on Integer; it always returns nil},
+      ''
+    )
+
+    raise "Molinillo should contain no ruby warnings:\n\nout:\n#{out}\n\nerr:\n#{err}\n" unless out.empty? && err.empty?
   end
 
   #-- Inch -------------------------------------------------------------------#
