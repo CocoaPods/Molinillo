@@ -10,7 +10,9 @@
 
 ##### Enhancements
 
-* None.  
+* Circular dependency errors include the full (shortest) path between the
+  circularly-dependent vertices.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 

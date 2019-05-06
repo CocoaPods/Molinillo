@@ -287,6 +287,32 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(resolved.map(&:payload).map(&:to_s).sort).to include('pastel (0.6.1)', 'tty-table (0.6.0)')
       end
 
+      it 'includes the whole path in circular dependency errors' do
+        index = TestIndex.new(
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'b' => '= 1.0.0' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1.0.0', 'dependencies' => { 'c' => '= 1.0.0' }),
+          ],
+          'c' => [
+            TestSpecification.new('name' => 'c', 'version' => '1.0.0', 'dependencies' => { 'd' => '= 1.0.0' }),
+          ],
+          'd' => [
+            TestSpecification.new('name' => 'd', 'version' => '1.0.0', 'dependencies' => { 'a' => '= 1.0.0' }),
+          ]
+        )
+
+        demands = [
+          Gem::Dependency.new('a'),
+        ]
+
+        resolver = described_class.new(index, TestUI.new)
+
+        expect { resolver.resolve(demands, DependencyGraph.new) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c and d')
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do
