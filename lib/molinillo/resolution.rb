@@ -238,11 +238,11 @@ module Molinillo
         debug { 'Activated: ' + Hash[activated.vertices.select { |_n, v| v.payload }].keys.join(', ') } if state
       end
 
-      require 'molinillo/state'
-      require 'molinillo/modules/specification_provider'
+      require_relative 'state'
+      require_relative 'modules/specification_provider'
 
-      require 'molinillo/delegates/resolution_state'
-      require 'molinillo/delegates/specification_provider'
+      require_relative 'delegates/resolution_state'
+      require_relative 'delegates/specification_provider'
 
       include Molinillo::Delegates::ResolutionState
       include Molinillo::Delegates::SpecificationProvider

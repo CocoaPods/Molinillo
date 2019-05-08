@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'molinillo/dependency_graph/action'
+require_relative 'action'
 module Molinillo
   class DependencyGraph
     # @!visibility private
