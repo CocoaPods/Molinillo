@@ -80,7 +80,7 @@ module Molinillo
       @specification_provider = specification_provider
     end
 
-    require 'molinillo/delegates/specification_provider'
+    require_relative 'delegates/specification_provider'
     include Delegates::SpecificationProvider
 
     # @return [String] An error message that includes requirement trees,
