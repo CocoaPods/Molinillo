@@ -514,12 +514,12 @@ module Molinillo
 
         possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
 
-        # When there’s a `CircularDependency` error the conflicting requirement
-        # (the one causing the circular) won’t be `conflict.requirement`
-        # (which won’t be for the right state, because we won’t have created it,
-        # because it’s circular).
-        # We need to make sure we have that requirement in the conflict’s list,
-        # otherwise we won’t be able to unwind properly, so we just return all
+        # When there's a `CircularDependency` error the conflicting requirement
+        # (the one causing the circular) won't be `conflict.requirement`
+        # (which won't be for the right state, because we won't have created it,
+        # because it's circular).
+        # We need to make sure we have that requirement in the conflict's list,
+        # otherwise we won't be able to unwind properly, so we just return all
         # the requirements for the conflict.
         return possible_binding_requirements if conflict.underlying_error
 
