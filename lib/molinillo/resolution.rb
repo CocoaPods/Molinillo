@@ -668,9 +668,8 @@ module Molinillo
           attempt_to_filter_existing_spec(existing_vertex)
         else
           latest = possibility.latest_version
-          # use reject!(!satisfied) for 1.8.7 compatibility
-          possibility.possibilities.reject! do |possibility|
-            !requirement_satisfied_by?(requirement, activated, possibility)
+          possibility.possibilities.select! do |possibility|
+            requirement_satisfied_by?(requirement, activated, possibility)
           end
           if possibility.latest_version.nil?
             # ensure there's a possibility for better error messages
