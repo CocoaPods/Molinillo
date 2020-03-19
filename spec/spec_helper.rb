@@ -5,7 +5,7 @@ require 'bundler/setup'
 # Set up coverage analysis
 #-----------------------------------------------------------------------------#
 
-if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && RUBY_VERSION >= '2.0.0' && Bundler.current_ruby.mri?
+if (ENV['CI'] || ENV['GENERATE_COVERAGE']) && Bundler.current_ruby.mri?
   require 'simplecov'
   require 'codeclimate-test-reporter'
 

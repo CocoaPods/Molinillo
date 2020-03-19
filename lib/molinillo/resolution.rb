@@ -490,7 +490,7 @@ module Molinillo
         primary_unwinds = unwinds_to_state.select(&:unwinding_to_primary_requirement?).uniq
         parent_unwinds = unwinds_to_state.uniq - primary_unwinds
 
-        allowed_possibility_sets = Compatibility.flat_map(primary_unwinds) do |unwind|
+        allowed_possibility_sets = primary_unwinds.flat_map do |unwind|
           states[unwind.state_index].possibilities.select do |possibility_set|
             possibility_set.possibilities.any? do |poss|
               possibility_satisfies_requirements?(poss, unwind.conflicting_requirements)
@@ -498,7 +498,7 @@ module Molinillo
           end
         end
 
-        requirements_to_avoid = Compatibility.flat_map(parent_unwinds, &:sub_dependencies_to_avoid)
+        requirements_to_avoid = parent_unwinds.flat_map(&:sub_dependencies_to_avoid)
 
         state.possibilities.reject! do |possibility_set|
           !allowed_possibility_sets.include?(possibility_set) &&

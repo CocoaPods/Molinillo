@@ -174,7 +174,6 @@ Molinillo could not find compatible versions for possibility named "missing":
       end
 
       it 'raises conflicts with requirement trees' do
-        skip "hashes don't behave nicely on 1.8.7" if RUBY_VERSION == '1.8.7'
         test_case = TestCase.all.find { |tc| tc.name == 'yields conflicts if a child dependency is not resolved' }
         index_class = TestIndex
 
