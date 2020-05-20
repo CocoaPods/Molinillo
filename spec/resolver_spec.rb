@@ -182,7 +182,7 @@ Molinillo could not find compatible versions for possibility named "missing":
 Unable to satisfy the following requirements:
 
 - `json (>= 1.7.7)` required by `berkshelf (2.0.7)`
-- `json (>= 1.4.4, <= 1.7.7)` required by `chef (10.26)`
+- `json (<= 1.7.7, >= 1.4.4)` required by `chef (10.26)`
           EOS
           expect(conflict.message_with_trees(:version_for_spec => lambda(&:version))).to eq <<-EOS.strip
 Molinillo could not find compatible versions for possibility named "json":
@@ -193,7 +193,7 @@ Molinillo could not find compatible versions for possibility named "json":
 
     chef_app_error (>= 0) was resolved to 1.0.0, which depends on
       chef (~> 10.26) was resolved to 10.26, which depends on
-        json (>= 1.4.4, <= 1.7.7)
+        json (<= 1.7.7, >= 1.4.4)
           EOS
         end
       end
