@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.7.0 (2020-10-21)
 
 ##### Breaking
 
