@@ -85,7 +85,10 @@ begin
     err = err.sub(
       %r{.+rubygems/version\.rb:\d+: warning: deprecated Object#=~ is called on Integer; it always returns nil},
       ''
-    )
+    ).gsub(
+      /^RUBY_GC_(HEAP_INIT_SLOTS|MALLOC_LIMIT)=\d+ \(default value: \d+\)$/,
+      ''
+    ).strip
 
     raise "Molinillo should contain no ruby warnings:\n\nout:\n#{out}\n\nerr:\n#{err}\n" unless out.empty? && err.empty?
   end
