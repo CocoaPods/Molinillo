@@ -98,7 +98,7 @@ module Molinillo
 
       # @return [String] a string suitable for debugging
       def inspect
-        "#{self.class}:#{name}(#{payload.inspect})"
+        "#{self.class}:#{name}(#{payload})"
       end
 
       # @return [Boolean] whether the two vertices are equal, determined
