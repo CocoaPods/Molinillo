@@ -4,7 +4,9 @@
 
 ##### Enhancements
 
-* None.  
+* Use `Array#-` in unwind logic, since it performs better than `Array#&`, so it
+  speeds up resolution.  
+  [Lukas Oberhuber](https://github.com/lukaso)
 
 ##### Bug Fixes
 
