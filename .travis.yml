@@ -37,7 +37,7 @@ install:
       gem install rake;
     fi
 
-  - gem install bundler -v "~> 1.17"
+  - gem install bundler -v "~> 2.2"
   - rake bootstrap
 
 script: bundle exec rake
