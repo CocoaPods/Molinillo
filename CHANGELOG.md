@@ -14,6 +14,10 @@
   speeds up resolution.  
   [Lukas Oberhuber](https://github.com/lukaso)
 
+* Allow specification provider to customize how dependencies are compared when
+  grouping specifications with the same dependencies.  
+  [David Rodríguez](https://github.com/deivid-rodriguez)
+
 ##### Bug Fixes
 
 * None.  
