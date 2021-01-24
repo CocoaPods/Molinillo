@@ -128,7 +128,7 @@ module Molinillo
 
       # Is there a path from `self` to `other` following edges in the
       # dependency graph?
-      # @return true iff there is a path following edges within this {#graph}
+      # @return whether there is a path following edges within this {#graph}
       def path_to?(other)
         _path_to?(other)
       end
@@ -147,7 +147,7 @@ module Molinillo
 
       # Is there a path from `other` to `self` following edges in the
       # dependency graph?
-      # @return true iff there is a path following edges within this {#graph}
+      # @return whether there is a path following edges within this {#graph}
       def ancestor?(other)
         other.path_to?(self)
       end
