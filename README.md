@@ -1,6 +1,6 @@
 # Molinillo
 
-[![Build Status](https://img.shields.io/travis/CocoaPods/Molinillo/master.svg?style=flat)](https://travis-ci.org/CocoaPods/Molinillo)
+[![Build Status](https://github.com/CocoaPods/Molinillo/workflows/test/badge.svg)](https://github.com/CocoaPods/Molinillo/actions?query=branch%3Amaster)
 [![Coverage](https://img.shields.io/codeclimate/coverage/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
 [![Code Climate](https://img.shields.io/codeclimate/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
 
