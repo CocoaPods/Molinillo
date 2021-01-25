@@ -2,6 +2,12 @@
 
 ## Master
 
+##### Breaking
+
+* Support for Ruby 2.0, 2.1 and 2.2 has been dropped, the minimum supported
+  Ruby version is now 2.3.  
+  [David Rodríguez](https://github.com/deivid-rodriguez)
+
 ##### Enhancements
 
 * Use `Array#-` in unwind logic, since it performs better than `Array#&`, so it
