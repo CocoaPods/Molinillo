@@ -1,6 +1,6 @@
 # Molinillo Changelog
 
-## Master
+## 0.8.0 (2021-08-09)
 
 ##### Breaking
 
