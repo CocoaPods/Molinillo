@@ -85,7 +85,6 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  bundler (~> 1.5)
   codeclimate-test-reporter
   inch_by_inch
   kicker
@@ -95,4 +94,4 @@ DEPENDENCIES
   rubocop
 
 BUNDLED WITH
-   2.2.6
+   2.2.8
