@@ -1,8 +1,8 @@
 # Molinillo
 
 [![Build Status](https://github.com/CocoaPods/Molinillo/workflows/test/badge.svg)](https://github.com/CocoaPods/Molinillo/actions?query=branch%3Amaster)
-[![Coverage](https://img.shields.io/codeclimate/coverage/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
-[![Code Climate](https://img.shields.io/codeclimate/github/CocoaPods/Molinillo.svg?style=flat)](https://codeclimate.com/github/CocoaPods/Molinillo)
+[![Maintainability](https://api.codeclimate.com/v1/badges/698b14f02b68837ad6f8/maintainability)](https://codeclimate.com/github/CocoaPods/Molinillo/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/698b14f02b68837ad6f8/test_coverage)](https://codeclimate.com/github/CocoaPods/Molinillo/test_coverage)
 
 A generic dependency-resolution implementation.
 
