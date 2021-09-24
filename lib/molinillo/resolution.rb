@@ -732,7 +732,7 @@ module Molinillo
       #   activated
       # @return [void]
       def require_nested_dependencies_for(possibility_set)
-        nested_dependencies = dependencies_for(possibility_set.latest_version)
+        nested_dependencies = possibility_set.dependencies
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
         nested_dependencies.each do |d|
           activated.add_child_vertex(name_for(d), nil, [name_for(possibility_set.latest_version)], d)
