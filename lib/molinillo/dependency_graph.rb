@@ -27,17 +27,6 @@ module Molinillo
       vertex.successors.each(&block)
     end
 
-    # Topologically sorts the given vertices.
-    # @param [Enumerable<Vertex>] vertices the vertices to be sorted, which must
-    #   all belong to the same graph.
-    # @return [Array<Vertex>] The sorted vertices.
-    def self.tsort(vertices)
-      TSort.tsort(
-        lambda { |b| vertices.each(&b) },
-        lambda { |v, &b| (v.successors & vertices).each(&b) }
-      )
-    end
-
     # A directed edge of a {DependencyGraph}
     # @attr [Vertex] origin The origin of the directed edge
     # @attr [Vertex] destination The destination of the directed edge
