@@ -8,7 +8,10 @@
 
 ##### Bug Fixes
 
-* None.  
+* Generation of filtered version of the existing vertex's `PossibilitySet` fixed, 
+  so it takes into account the fact that vertices are sorted from ones with lower 
+  priority to ones with higher priority when otherwise they are equal.
+  [Ilya Myakotin](https://github.com/rehsals)
 
 
 ## 0.8.0 (2021-08-09)
