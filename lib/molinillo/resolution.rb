@@ -706,7 +706,7 @@ module Molinillo
       # @param [Object] vertex existing vertex
       # @return [PossibilitySet] filtered possibility set
       def filtered_possibility_set(vertex)
-        PossibilitySet.new(vertex.payload.dependencies, vertex.payload.possibilities & possibility.possibilities)
+        PossibilitySet.new(vertex.payload.dependencies, (vertex.payload.possibilities.reverse & possibility.possibilities.reverse).reverse)
       end
 
       # @param [String] requirement_name the spec name to search for
