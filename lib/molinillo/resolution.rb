@@ -175,7 +175,6 @@ module Molinillo
             state.pop_possibility_state.tap do |s|
               if s
                 states.push(s)
-                activated.tag(s)
               end
             end
           end
