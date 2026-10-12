@@ -95,6 +95,18 @@ describe Molinillo::DependencyGraph::Log do
     end
   end
 
+  it 'raises without undoing anything when rewinding to an unknown tag' do
+    graph = Molinillo::DependencyGraph.new
+    graph.add_vertex('a', 'a', true)
+    graph.tag(:known)
+    graph.add_child_vertex('b', 'b', %w(a), 'b')
+    expect { graph.rewind_to(:unknown) }.to raise_error(RuntimeError, 'No tag :unknown found')
+    expect(graph.vertices.keys).to eq(%w(a b))
+    expect(graph.vertex_named('a').successors.map(&:name)).to eq(%w(b))
+    graph.rewind_to(:known)
+    expect(graph.vertices.keys).to eq(%w(a))
+  end
+
   it_behaves_like 'replay', []
   it_behaves_like 'replay', [
     proc { |g| g.add_child_vertex('Foo', 1, [nil], 4) },

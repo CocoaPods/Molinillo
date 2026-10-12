@@ -51,6 +51,10 @@
   where it previously caused a later `rewind_to` to raise.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Rewinding a `DependencyGraph` to a tag that is not in its log raises without
+  undoing anything. Previously it undid the entire log before raising.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

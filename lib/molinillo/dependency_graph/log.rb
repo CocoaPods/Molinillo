@@ -112,15 +112,23 @@ module Molinillo
       end
 
       # @macro action
+      # @raise [RuntimeError] if there is no such tag, without undoing anything
       def rewind_to(graph, tag)
+        unless reverse_each.any? { |action| tag?(action, tag) }
+          raise "No tag #{tag.inspect} found"
+        end
         loop do
           action = pop!(graph)
-          raise "No tag #{tag.inspect} found" unless action
-          break if action.class.action_name == :tag && action.tag == tag
+          break if tag?(action, tag)
         end
       end
 
       private
+
+      # @return [Boolean] whether the action is a tag action for the given tag
+      def tag?(action, tag)
+        action.class.action_name == :tag && action.tag == tag
+      end
 
       # Adds the given action to the log, running the action.
       #
