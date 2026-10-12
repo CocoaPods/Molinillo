@@ -122,7 +122,12 @@ module Molinillo
 
       private
 
-      # Adds the given action to the log, running the action
+      # Adds the given action to the log, running the action.
+      #
+      # The action is linked in before it runs, so that any actions it records
+      # while running (e.g. recursive detaches) come after it and are undone
+      # first. If running it raises, it is unlinked again, so that a failed
+      # action is never undone by a later rewind.
       # @param [DependencyGraph] graph
       # @param [Action] action
       # @return The value returned by `action.up`
@@ -131,7 +136,31 @@ module Molinillo
         @current_action.next = action if @current_action
         @current_action = action
         @first_action ||= action
-        action.up(graph)
+        begin
+          action.up(graph)
+        rescue StandardError
+          unlink(action)
+          raise
+        end
+      end
+
+      # Removes the given action from the log without undoing it
+      # @param [Action] action
+      # @return [Void]
+      def unlink(action)
+        previous = action.previous
+        following = action.next
+        if previous
+          previous.next = following
+        else
+          @first_action = following
+        end
+        if following
+          following.previous = previous
+        else
+          @current_action = previous
+        end
+        action.previous = action.next = nil
       end
     end
   end

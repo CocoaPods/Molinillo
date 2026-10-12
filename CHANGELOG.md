@@ -46,6 +46,11 @@
   that did not exist added that edge to the graph.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* An action that raises while being applied to a `DependencyGraph` (for example
+  `set_payload` for a vertex that does not exist) is no longer left in the log,
+  where it previously caused a later `rewind_to` to raise.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

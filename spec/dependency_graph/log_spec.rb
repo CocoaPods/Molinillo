@@ -74,6 +74,27 @@ describe Molinillo::DependencyGraph::Log do
     end
   end
 
+  describe 'actions that raise' do
+    let(:graph) { Molinillo::DependencyGraph.new.tap { |g| g.add_vertex('a', 'a', true) } }
+
+    it 'does not record an action whose application raised' do
+      graph.tag(:before)
+      expect { graph.set_payload('missing', 'payload') }.to raise_error(NoMethodError)
+      expect(graph.log.reverse_each.first).to be_a(Molinillo::DependencyGraph::Tag)
+      expect { graph.rewind_to(:before) }.not_to raise_error
+      expect(graph.vertices.keys).to eq(%w(a))
+    end
+
+    it 'still records actions in order when one action records others' do
+      graph.add_child_vertex('b', 'b', %w(a), 'b')
+      graph.tag(:before)
+      graph.detach_vertex_named('a')
+      graph.rewind_to(:before)
+      expect(graph.vertex_named('a').outgoing_edges.map { |e| e.destination.name }).to eq(%w(b))
+      expect(graph.vertex_named('b').incoming_edges.map { |e| e.origin.name }).to eq(%w(a))
+    end
+  end
+
   it_behaves_like 'replay', []
   it_behaves_like 'replay', [
     proc { |g| g.add_child_vertex('Foo', 1, [nil], 4) },
