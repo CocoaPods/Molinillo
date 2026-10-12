@@ -80,6 +80,12 @@
   cycle is found instead of raising a `CircularDependencyError`.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Track requirements by identity when working out which states to unwind to,
+  so that equal requirements declared by different parents are traced back to
+  their own parents even when the provider's requirements have a value-based
+  `eql?`/`hash` (as Bundler gives `Gem::Dependency`).  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

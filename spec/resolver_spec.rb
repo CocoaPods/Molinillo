@@ -536,6 +536,37 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(operations).to be < 10 * n * n
       end
 
+      it 'traces equal requirements from different parents separately when unwinding a cycle' do
+        # p2 (1) and p3 (2) both require `p4 (>= 2)`, and p4 (2) -> p3 closes
+        # the cycle p3 -> p4 -> p3; p3 (1) has no dependencies, so
+        # { p2 (1), p3 (1), p4 (2) } is a valid resolution. With a value-based
+        # `eql?` (as Bundler gives Gem::Dependency), p3's `p4 (>= 2)` used to be
+        # merged with p2's, so the cycle was never traced back to p3.
+        value_eql_dependency = Class.new(Gem::Dependency) do
+          def eql?(other)
+            self == other
+          end
+        end
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| value_eql_dependency.new(d.name, d.requirement) }
+          end
+        end
+        index = TestIndex.new(
+          'p2' => [spec.call('p2', '1', 'p4' => '>= 2')],
+          'p3' => [spec.call('p3', '1'), spec.call('p3', '2', 'p4' => '>= 2')],
+          'p4' => [spec.call('p4', '2', 'p3' => '!= 3')]
+        )
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+        demands = [value_eql_dependency.new('p2'), value_eql_dependency.new('p3')]
+
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['p2 (1)', 'p3 (1)', 'p4 (2)'])
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do

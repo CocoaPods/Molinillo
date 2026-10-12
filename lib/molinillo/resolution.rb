@@ -157,7 +157,9 @@ module Molinillo
         @states = []
         @state_requirements_by_name = {}
         @iteration_counter = 0
-        @parents_of = Hash.new { |h, k| h[k] = [] }
+        # Keyed by identity: requirements that are equal but come from different
+        # parents must keep their own parent, whatever the provider's `eql?`.
+        @parents_of = Hash.new { |h, k| h[k] = [] }.compare_by_identity
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -544,7 +546,10 @@ module Molinillo
       def binding_requirements_for_conflict(conflict)
         return [conflict.requirement] if conflict.possibility.nil?
 
-        possible_binding_requirements = conflict.requirements.values.flatten(1).uniq
+        # Requirements are tracked by identity here (and below): equal requirements
+        # declared by different parents lead to different unwind options, so they
+        # must not be merged by a provider's value-based `eql?`/`hash`.
+        possible_binding_requirements = conflict.requirements.values.flatten(1).uniq(&:object_id)
 
         # When there's a `CircularDependency` error the conflicting requirement
         # (the one causing the circular) won't be `conflict.requirement`
@@ -556,7 +561,7 @@ module Molinillo
         # along the cycle: changing any state that introduced one of them could
         # break the cycle (e.g. an older version of a package that closes it).
         if conflict.underlying_error
-          return (possible_binding_requirements + requirements_along_cycle(conflict.underlying_error)).uniq
+          return (possible_binding_requirements + requirements_along_cycle(conflict.underlying_error)).uniq(&:object_id)
         end
 
         possibilities = search_for(conflict.requirement)
@@ -581,7 +586,7 @@ module Molinillo
         possible_binding_requirements.reverse_each do |req|
           next if req.equal?(conflict.requirement)
           unless binding_requirement_in_set?(req, binding_requirements, possibilities)
-            binding_requirements -= [req]
+            binding_requirements = binding_requirements.reject { |r| r.equal?(req) }
           end
         end
 
@@ -595,7 +600,7 @@ module Molinillo
       #    out all elements of the array of possibilities.
       def binding_requirement_in_set?(requirement, possible_binding_requirements, possibilities)
         possibilities.any? do |poss|
-          possibility_satisfies_requirements?(poss, possible_binding_requirements - [requirement])
+          possibility_satisfies_requirements?(poss, possible_binding_requirements.reject { |r| r.equal?(requirement) })
         end
       end
 
