@@ -10,7 +10,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
@@ -30,7 +30,7 @@ jobs:
       CODECLIMATE_REPO_TOKEN: c98a4eeafdd6a179fd24c8553ec8445c76027f7501348b22e054e7b360fba034
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
