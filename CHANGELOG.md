@@ -92,6 +92,12 @@
   `a 2.0` has different dependencies.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* When `allow_missing?` lets a requirement with no possibilities be skipped,
+  ignore only that requirement instead of removing the whole vertex, which
+  dropped other (satisfiable) requirements on the same name, removed already
+  activated specs from the result, or crashed with a `NoMethodError`.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

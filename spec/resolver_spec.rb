@@ -216,6 +216,57 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
       end
 
+      context 'when allow_missing? returns true for one of several requirements on a name' do
+        let(:index) do
+          TestIndex.new(
+            'b' => [
+              TestSpecification.new('name' => 'b', 'version' => '1.0', 'dependencies' => { 'c' => '> 9.0' }),
+            ],
+            'c' => [
+              TestSpecification.new('name' => 'c', 'version' => '3.0'),
+            ],
+            'd' => [
+              TestSpecification.new('name' => 'd', 'version' => '2.0', 'dependencies' => { 'c' => '>= 1.0' }),
+            ]
+          ).tap do |index|
+            def index.allow_missing?(_dependency)
+              true
+            end
+
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(demands)
+          described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+        end
+
+        it 'keeps an explicit requirement on the name when a nested one is missing' do
+          resolved = resolve([Gem::Dependency.new('b'), Gem::Dependency.new('c')])
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['b (1.0)', 'c (3.0)'])
+          expect(resolved.vertex_named('c').requirements).to eq([Gem::Dependency.new('c')])
+        end
+
+        it 'keeps an explicit requirement on the name when another explicit one is missing' do
+          expect(resolve([Gem::Dependency.new('c', '> 9.0'), Gem::Dependency.new('c')]).map(&:payload).map(&:to_s)).
+            to eq(['c (3.0)'])
+          expect(resolve([Gem::Dependency.new('c'), Gem::Dependency.new('c', '> 9.0')]).map(&:payload).map(&:to_s)).
+            to eq(['c (3.0)'])
+        end
+
+        it 'keeps the dependencies of activated specs when a later requirement on the same name is missing' do
+          resolved = resolve([Gem::Dependency.new('d'), Gem::Dependency.new('b')])
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['b (1.0)', 'c (3.0)', 'd (2.0)'])
+          expect(resolved.vertex_named('d').outgoing_edges.map(&:requirement)).
+            to eq([Gem::Dependency.new('c', '>= 1.0')])
+          expect(resolved.vertex_named('b').outgoing_edges).to be_empty
+        end
+      end
+
       it 'only cleans up orphaned vertices after swapping' do
         index = TestIndex.new(
           'a' => [

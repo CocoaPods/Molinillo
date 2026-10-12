@@ -918,13 +918,14 @@ module Molinillo
       # If the {#specification_provider} says to
       # {SpecificationProvider#allow_missing?} that particular requirement, and
       # there are no possibilities for that requirement, then `state` is not
-      # pushed, and the vertex in {#activated} is removed, and we continue
+      # pushed, that requirement is removed from the vertex in {#activated}
+      # (and the vertex itself, if nothing else requires it), and we continue
       # resolving the remaining requirements.
       # @param [DependencyState] state
       # @return [void]
       def handle_missing_or_push_dependency_state(state)
         if state.requirement && state.possibilities.empty? && allow_missing?(state.requirement)
-          state.activated.detach_vertex_named(state.name)
+          ignore_missing_requirement(state.activated, state.name, state.requirement)
           push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
           push_state(state).tap { activated.tag(state) }
@@ -962,6 +963,25 @@ module Molinillo
       def state_for_requirement?(requirement)
         reqs = @state_requirements_by_name[name_for(requirement)]
         reqs ? reqs.any? { |r| r == requirement } : false
+      end
+
+      # Removes a requirement that is allowed to be missing from the vertex it
+      # was added to, keeping any other requirements on that vertex. The vertex
+      # is only detached once nothing requires it any more.
+      # @param [DependencyGraph] graph
+      # @param [String] name
+      # @param [Object] requirement
+      # @return [void]
+      def ignore_missing_requirement(graph, name, requirement)
+        return unless vertex = graph.vertex_named(name)
+
+        # Whether a requirement has possibilities does not depend on the
+        # resolution state, so this need not be undone when unwinding.
+        vertex.explicit_requirements.delete(requirement)
+        vertex.incoming_edges.select { |edge| edge.requirement == requirement }.each do |edge|
+          graph.delete_edge(edge)
+        end
+        graph.detach_vertex_named(name) if vertex.requirements.empty?
       end
     end
   end
