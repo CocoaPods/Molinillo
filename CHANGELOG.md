@@ -86,6 +86,12 @@
   `eql?`/`hash` (as Bundler gives `Gem::Dependency`).  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Find a resolution (instead of raising a `VersionConflict`) when an earlier
+  requirement on a name narrowed its possibilities by choosing one of several
+  possibility sets, e.g. `a (!= 2.0)`, `a (>= 0)` and `a (< 3.0)` where only
+  `a 2.0` has different dependencies.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

@@ -567,6 +567,109 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(resolved.map(&:payload).map(&:to_s)).to match_array(['p2 (1)', 'p3 (1)', 'p4 (2)'])
       end
 
+      context 'when an earlier requirement narrowed the possibilities by choosing a possibility set' do
+        # a 0.9 and a 3.0 have the same dependencies, but a 2.0 does not, so
+        # `a (>= 0)` sees the sets [0.9] [2.0] [3.0] while `a (!= 2.0)` sees
+        # the single set [0.9, 3.0]. Choosing [3.0] for `a (>= 0)` narrows
+        # the activated a to 3.0, which `a (< 3.0)` then conflicts with, even
+        # though a 0.9 satisfies every requirement.
+        let(:index) do
+          TestIndex.new(
+            'a' => [
+              TestSpecification.new('name' => 'a', 'version' => '0.9'),
+              TestSpecification.new('name' => 'a', 'version' => '2.0', 'dependencies' => { 'd' => '>= 0' }),
+              TestSpecification.new('name' => 'a', 'version' => '3.0'),
+            ],
+            'd' => [
+              TestSpecification.new('name' => 'd', 'version' => '1.0'),
+            ]
+          ).tap do |index|
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        it 'unwinds to the requirement that chose the set' do
+          demands = [
+            Gem::Dependency.new('a', '!= 2.0'),
+            Gem::Dependency.new('a', '>= 0'),
+            Gem::Dependency.new('a', '< 3.0'),
+          ]
+
+          resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+          expect(resolved.map(&:payload).map(&:to_s)).to eq(['a (0.9)'])
+        end
+
+        it 'unwinds to the requirement that chose the set when the requirements are transitive' do
+          index.specs['w'] = [
+            TestSpecification.new('name' => 'w', 'version' => '1.0', 'dependencies' => { 'a' => '!= 2.0' }),
+          ]
+          index.specs['x'] = [
+            TestSpecification.new('name' => 'x', 'version' => '1.0', 'dependencies' => { 'a' => '>= 0' }),
+          ]
+          index.specs['y'] = [
+            TestSpecification.new('name' => 'y', 'version' => '1.0', 'dependencies' => { 'a' => '< 3.0' }),
+          ]
+          demands = [
+            Gem::Dependency.new('w'),
+            Gem::Dependency.new('x'),
+            Gem::Dependency.new('y'),
+          ]
+
+          resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['a (0.9)', 'w (1.0)', 'x (1.0)', 'y (1.0)'])
+        end
+      end
+
+      it 'does not add unwinding work for conflicts that regular unwinding can fix' do
+        # Minimized from a generated case where unwinding to every state that
+        # chose a possibility set for the conflicting name (instead of only when
+        # no other unwind is possible) took 884 instead of 214 unwinds.
+        specs = {
+          'a' => { '2.0' => { 'b' => '>= 0', 'e' => '>= 0', 'f' => '>= 0', 'g' => '>= 0' } },
+          'b' => { '1.0' => { 'c' => '>= 0', 'd' => '>= 0', 'h' => '>= 0' } },
+          'c' => { '1.0' => { 'f' => '>= 0' } },
+          'd' => { '1.1' => { 'i' => '<= 1.1' } },
+          'e' => { '3.0' => { 'g' => '= 1.0', 'h' => '!= 1.1' } },
+          'f' => { '3.0' => { 'i' => '!= 1.5' } },
+          'g' => { '1.0' => { 'i' => '= 0.9' }, '3.0' => { 'h' => '!= 1.0', 'i' => '>= 0' } },
+          'h' => { '1.0' => { 'i' => '>= 0' }, '2.0' => { 'i' => '> 0' }, '3.0' => { 'i' => '~> 0' } },
+          'i' => { '0.9' => {}, '1.0' => { 'j' => '>= 0' }, '2.0' => { 'j' => '!= 1.0' } },
+          'j' => { '1.1' => {} },
+        }
+        index = TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+          h[name] = versions.map do |version, dependencies|
+            TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+          end
+        end)
+        def index.sort_dependencies(dependencies, activated, conflicts)
+          dependencies.sort_by do |d|
+            [activated.vertex_named(d.name).payload ? 0 : 1, conflicts[d.name] ? 0 : 1]
+          end.reverse
+        end
+        ui = TestUI.new
+        def ui.progress_rate
+          0.0 # report progress on every iteration
+        end
+
+        def ui.iterations
+          @iterations ||= 0
+        end
+
+        def ui.indicate_progress
+          @iterations = iterations + 1
+        end
+
+        resolved = described_class.new(index, ui).resolve([Gem::Dependency.new('a', '>= 0')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to include('a (2.0)', 'g (1.0)', 'i (0.9)')
+        # 44 iterations on master; unwinding to every set-choosing state needed 74.
+        expect(ui.iterations).to be < 55
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do

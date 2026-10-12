@@ -329,8 +329,12 @@ module Molinillo
       def build_details_for_unwind
         # Get the possible unwinds for the current conflict
         current_conflict = conflicts[name]
+        @set_choice_conflict_requirements = nil
         binding_requirements = binding_requirements_for_conflict(current_conflict)
         unwind_details = unwind_options_for_requirements(binding_requirements)
+        if @set_choice_conflict_requirements && unwind_details.all? { |detail| detail.state_index == -1 }
+          unwind_details.concat(unwind_options_for_set_choices(@set_choice_conflict_requirements, binding_requirements))
+        end
 
         last_detail_for_current_unwind = unwind_details.sort.last
         current_detail = last_detail_for_current_unwind
@@ -568,9 +572,14 @@ module Molinillo
 
         # If all the requirements together don't filter out all possibilities,
         # then the only two requirements we need to consider are the initial one
-        # (where the dependency's version was first chosen) and the last
+        # (where the dependency's version was first chosen) and the last. The
+        # conflict was then caused by which possibility sets were chosen, not by
+        # the requirements' versions, so any later state for this name that
+        # narrowed the existing possibility set by choosing one of its sets can
+        # also fix it by choosing another (see #unwind_options_for_set_choices).
         if binding_requirement_in_set?(nil, possible_binding_requirements, possibilities)
-          return [conflict.requirement, requirement_for_existing_name(name_for(conflict.requirement))].compact
+          @set_choice_conflict_requirements = possible_binding_requirements
+          return [conflict.requirement, requirements_for_existing_name(name_for(conflict.requirement)).first].compact
         end
 
         # Loop through the possible binding requirements, removing each one
@@ -591,6 +600,34 @@ module Molinillo
         end
 
         binding_requirements
+      end
+
+      # Unwind options for a conflict caused by the choice of possibility sets
+      # (see #binding_requirements_for_conflict): the states for the conflicting
+      # name, other than the binding ones, that still have a possibility set
+      # satisfying all of the conflict's requirements. Only these states are
+      # candidates; unlike binding requirements, their parents are not, since
+      # avoiding a requirement that did not exclude any version cannot fix the
+      # conflict.
+      # @param [Array] conflict_requirements all of the conflict's requirements
+      # @param [Array] binding_requirements the conflict's binding requirements
+      # @return [Array<UnwindDetails>]
+      def unwind_options_for_set_choices(conflict_requirements, binding_requirements)
+        name = name_for(binding_requirements.first)
+        requirements_for_existing_name(name).each_with_object([]) do |requirement, details|
+          next if binding_requirements.include?(requirement)
+          requirement_state = find_state_for(requirement)
+          next unless conflict_fixing_possibilities?(requirement_state, conflict_requirements)
+          tree = [requirement]
+          details << UnwindDetails.new(
+            states.index(requirement_state),
+            requirement,
+            tree,
+            conflict_requirements,
+            [tree],
+            []
+          )
+        end
       end
 
       # @param [Object] requirement we wish to check
@@ -631,12 +668,13 @@ module Molinillo
       end
 
       # @param [String] name
-      # @return [Object] the requirement that led to a version of a possibility
-      #   with the given name being activated.
-      def requirement_for_existing_name(name)
-        return nil unless vertex = activated.vertex_named(name)
-        return nil unless vertex.payload
-        states.find { |s| s.name == name }.requirement
+      # @return [Array<Object>] the requirements whose states chose the
+      #   possibility set of the existing spec with the given name, starting
+      #   with the one that first activated it.
+      def requirements_for_existing_name(name)
+        return [] unless vertex = activated.vertex_named(name)
+        return [] unless vertex.payload
+        states.select { |s| s.name == name }.map(&:requirement).uniq
       end
 
       # @param [Object] requirement
