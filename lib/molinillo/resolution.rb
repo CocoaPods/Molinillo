@@ -173,16 +173,14 @@ module Molinillo
         start_resolution
 
         while state
-          break if !state.requirement && state.requirements.empty?
+          if !state.requirement && state.requirements.empty?
+            break unless (vertex = unsatisfied_activated_vertex)
+            unwind_for_unsatisfied_vertex(vertex)
+            next
+          end
           indicate_progress
           if state.respond_to?(:pop_possibility_state) # DependencyState
-            debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
-            state.pop_possibility_state.tap do |s|
-              if s
-                push_state(s)
-                activated.tag(s)
-              end
-            end
+            push_possibility_state
           end
           process_topmost_state
         end
@@ -207,6 +205,18 @@ module Molinillo
 
       private
 
+      # Pushes the next possibility state and tags its graph before processing it.
+      # @return [void]
+      def push_possibility_state
+        debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
+        state.pop_possibility_state.tap do |s|
+          if s
+            push_state(s)
+            activated.tag(s)
+          end
+        end
+      end
+
       # Sets up the resolution process
       # @return [void]
       def start_resolution
@@ -216,6 +226,35 @@ module Molinillo
 
         debug { "Starting resolution (#{@started_at})\nUser-requested dependencies: #{original_requested}" }
         resolver_ui.before_resolution
+      end
+
+      # @return [DependencyGraph::Vertex, nil] an activated vertex none of
+      #   whose possibilities satisfies all of its requirements, now that every
+      #   requirement is known.
+      def unsatisfied_activated_vertex
+        activated.vertices.values.find do |vertex|
+          next unless vertex.payload
+          vertex.payload.possibilities.none? do |possibility|
+            vertex.requirements.all? { |req| requirement_satisfied_by?(req, activated, possibility) }
+          end
+        end
+      end
+
+      # Creates a conflict for the given activated vertex, as if its most
+      # recently processed requirement had just been found to be unsatisfiable,
+      # and unwinds for it.
+      # @param [DependencyGraph::Vertex] vertex
+      # @return [void]
+      def unwind_for_unsatisfied_vertex(vertex)
+        requirement = states.reverse_each.find { |s| s.name == vertex.name }.requirement
+        verification_state = PossibilityState.new(
+          vertex.name, [], activated, requirement, [vertex.payload], depth, conflicts.dup, unused_unwind_options.dup
+        )
+        push_state(verification_state)
+        activated.tag(verification_state)
+        debug(depth) { "Unsatisfied by its requirements: #{vertex.payload}" }
+        create_conflict
+        unwind_for_conflict
       end
 
       def resolve_activated_specs
@@ -523,13 +562,42 @@ module Molinillo
         name = name_for(possibility)
 
         activated.tag(:swap)
-        activated.set_payload(name, possibility) if activated.vertex_named(name)
-        satisfied = requirements.all? do |r|
-          name_for(r) != name || requirement_satisfied_by?(r, activated, possibility)
+        vertex = activated.vertex_named(name)
+        activated.set_payload(name, possibility) if vertex
+        # Requirements on other names (e.g. along a circular dependency) say
+        # nothing about this possibility, so only same-name ones are checked.
+        same_name_requirements = requirements.select { |r| name_for(r) == name }
+        # The requirements are checked together, so whether one of them is
+        # satisfied may depend on the others being present on the vertex
+        # (e.g. a prerelease requirement allowing prerelease versions).
+        added = missing_context_requirements(vertex, same_name_requirements)
+        vertex.explicit_requirements.concat(added) if vertex
+        begin
+          satisfied = same_name_requirements.all? { |r| requirement_satisfied_by?(r, activated, possibility) }
+        ensure
+          added.size.times { vertex.explicit_requirements.pop }
+          activated.rewind_to(:swap)
         end
-        activated.rewind_to(:swap)
 
         satisfied
+      end
+
+      # Avoid deduplicating the entire vertex requirement list on every
+      # candidate check. Exact objects already present need no augmentation.
+      # Otherwise Array#- keeps the original hash/eql? membership semantics;
+      # duplicates on its right-hand side do not affect the result.
+      # @param [DependencyGraph::Vertex, nil] vertex
+      # @param [Array<Object>] requirements
+      # @return [Array<Object>]
+      def missing_context_requirements(vertex, requirements)
+        return [] unless vertex
+        present = requirements.all? do |requirement|
+          vertex.explicit_requirements.any? { |r| r.equal?(requirement) } ||
+            vertex.incoming_edges.any? { |edge| edge.requirement.equal?(requirement) }
+        end
+        return [] if present
+        raw_requirements = vertex.incoming_edges.map(&:requirement) + vertex.explicit_requirements
+        requirements - raw_requirements
       end
 
       # Filter's a state's possibilities to remove any that would (eventually)
@@ -787,18 +855,7 @@ module Molinillo
           debug(depth) { "Found existing spec (#{existing_vertex.payload})" }
           attempt_to_filter_existing_spec(existing_vertex)
         else
-          latest = possibility.latest_version
-          possibility.possibilities.select! do |possibility|
-            requirement_satisfied_by?(requirement, activated, possibility)
-          end
-          if possibility.latest_version.nil?
-            # ensure there's a possibility for better error messages
-            possibility.possibilities << latest if latest
-            create_conflict
-            unwind_for_conflict
-          else
-            activate_new_spec
-          end
+          activate_new_spec
         end
       end
 
@@ -876,10 +933,35 @@ module Molinillo
         end
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = possibilities_for_requirement(new_requirement)
+        possibilities = try_unsatisfying_possibility_sets_last(new_requirement, possibilities, new_activated)
         handle_missing_or_push_dependency_state DependencyState.new(
           new_name, new_requirements, new_activated,
           new_requirement, possibilities, depth, conflicts.dup, unused_unwind_options.dup
         )
+      end
+
+      # Orders possibility sets so that those with no possibility satisfying
+      # `requirement` in the current context are tried last. They are kept
+      # rather than discarded, since whether `requirement` is satisfied can
+      # depend on requirements that have not been seen yet (e.g. a prerelease
+      # becoming acceptable once a prerelease requirement is added); whether a
+      # possibility really satisfies all of its requirements is checked once
+      # every requirement is known (see {#unsatisfied_activated_vertex}).
+      # @param [Object] requirement
+      # @param [Array<PossibilitySet>] possibility_sets
+      # @param [DependencyGraph] activated
+      # @return [Array<PossibilitySet>] the reordered possibility sets
+      def try_unsatisfying_possibility_sets_last(requirement, possibility_sets, activated)
+        # A partition cannot change the order of zero or one set. Do not ask
+        # context-sensitive providers to recheck every version when there is
+        # no ordering decision to make; final verification is still required.
+        return possibility_sets if possibility_sets.size < 2
+        return possibility_sets unless requirement && activated.vertex_named(name_for(requirement))
+
+        unsatisfying, satisfying = possibility_sets.partition do |possibility_set|
+          possibility_set.possibilities.none? { |p| requirement_satisfied_by?(requirement, activated, p) }
+        end
+        unsatisfying + satisfying
       end
 
       # Checks a proposed requirement with any existing locked requirement

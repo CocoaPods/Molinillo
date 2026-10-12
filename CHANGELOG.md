@@ -22,6 +22,15 @@
   searches are not cached, and context-sensitive satisfaction checks are unchanged.
   [Samuel Giddins](https://github.com/segiddins)
 
+* Avoid repeated requirement-list deduplication during context checks: recognize
+  already-present objects by identity, then preserve value-based subtraction for
+  missing requirements without a redundant right-hand-side `uniq` pass.
+  [Samuel Giddins](https://github.com/segiddins)
+
+* Avoid redundant context checks when ordering zero or one possibility set;
+  the order cannot change, and final context-sensitive verification is retained.
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming
@@ -108,6 +117,14 @@
   or take part in conflicts with the other requirements on the same name. This
   calls `search_for` (and, when it finds nothing, `allow_missing?`) for each
   requirement when it is added, rather than only when it is processed.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+* Make resolution independent of the order in which requirements are
+  processed when `requirement_satisfied_by?` depends on the other requirements
+  on the same name (e.g. prereleases only being allowed once a prerelease
+  requirement exists). Possibilities that do not satisfy a requirement yet are
+  now tried last instead of being discarded, and whether every activated spec
+  satisfies all of its requirements is checked once they are all known.  
   [Samuel Giddins](https://github.com/segiddins)
 
 

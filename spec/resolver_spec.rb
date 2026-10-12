@@ -783,6 +783,69 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(ui.iterations).to be < 55
       end
 
+      context 'when a prerelease requirement is only seen after a prerelease was considered' do
+        # TestIndex only lets a prerelease satisfy a non-prerelease requirement
+        # once some requirement on the same name is a prerelease requirement,
+        # so whether a prerelease is acceptable depends on requirements that
+        # may not have been processed yet. Keep the demands in the given order
+        # so the later requirement really is seen later.
+        def index_with(specs)
+          TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, dependencies|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+            end
+          end).tap do |index|
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |name, req| Gem::Dependency.new(name, req) }, DependencyGraph.new).
+            map(&:payload).map(&:to_s)
+        end
+
+        it 'keeps a prerelease in the activated possibility set until a later requirement allows it' do
+          index = index_with('a' => { '1.0' => {}, '2.0.a' => {} }, 'z' => { '1' => { 'a' => '>= 2.0.a' } })
+
+          expect(resolve(index, [['a', '>= 0'], ['z', '>= 0']])).to match_array(['a (2.0.a)', 'z (1)'])
+          expect(resolve(index, [['z', '>= 0'], ['a', '>= 0']])).to match_array(['a (2.0.a)', 'z (1)'])
+        end
+
+        it 'activates a prerelease-only possibility set that a later requirement allows' do
+          index = index_with('a' => { '2.0.a' => { 'b' => '<= 2.0.a' } }, 'b' => { '2.0.a' => {} })
+
+          expect(resolve(index, [['b', '>= 0'], ['a', '<= 2.0.a']])).to match_array(['a (2.0.a)', 'b (2.0.a)'])
+          expect(resolve(index, [['a', '<= 2.0.a'], ['b', '>= 0']])).to match_array(['a (2.0.a)', 'b (2.0.a)'])
+        end
+
+        it 'does not partition a single possibility set merely to rediscover the same order' do
+          index = index_with('a' => { '1.0' => {}, '2.0' => {} })
+          dependency = Gem::Dependency.new('a', '>= 0')
+          graph = DependencyGraph.new
+          graph.add_vertex('a', nil, true).explicit_requirements << dependency
+          resolution = Resolver::Resolution.new(index, TestUI.new, [dependency], DependencyGraph.new)
+          set = Resolver::Resolution::PossibilitySet.new([], index.search_for(dependency))
+          sets = [set]
+          expect(index).not_to receive(:requirement_satisfied_by?)
+          expect(resolution.send(:try_unsatisfying_possibility_sets_last, dependency, sets, graph)).to equal(sets)
+        end
+
+        it 'still rejects a prerelease that no requirement allows' do
+          index = index_with('a' => { '2.0.a' => {} })
+
+          expect { resolve(index, [['a', '>= 0']]) }.to raise_error(VersionConflict)
+        end
+
+        it 'falls back to a release with different dependencies without trying the prerelease first' do
+          index = index_with('a' => { '1.0' => {}, '2.0.a' => { 'x' => '>= 0' } }, 'x' => { '1.0' => {} })
+
+          expect(resolve(index, [['a', '>= 0']])).to eq(['a (1.0)'])
+        end
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do
