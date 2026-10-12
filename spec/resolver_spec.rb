@@ -267,6 +267,68 @@ Molinillo could not find compatible versions for possibility named "json":
         end
       end
 
+      context 'when allow_missing? lets a requirement with no possibilities be ignored' do
+        def index_with(specs)
+          TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, dependencies|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+            end
+          end).tap do |index|
+            def index.allow_missing?(_dependency)
+              true
+            end
+
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |name, req| Gem::Dependency.new(name, req) }, DependencyGraph.new).
+            map(&:payload).map(&:to_s)
+        end
+
+        it 'does not treat an ignored dependency as part of a cycle' do
+          # c 1.1 depends on `b (> 1.5)`, which no version of b satisfies, so it
+          # is ignored and there is no c -> b edge to close a cycle.
+          index = index_with('b' => { '1.0' => { 'c' => '>= 0' } }, 'c' => { '1.1' => { 'b' => '> 1.5' } })
+
+          expect(resolve(index, [['b', '>= 0']])).to match_array(['b (1.0)', 'c (1.1)'])
+        end
+
+        it 'does not treat an ignored dependency on the same name as a cycle' do
+          index = index_with('a' => { '3.0' => { 'a' => '> 3.0' } })
+
+          expect(resolve(index, [['a', '>= 0']])).to eq(['a (3.0)'])
+        end
+
+        it 'ignores such a dependency on a locked name too' do
+          # Re-resolving against the previous result as the base must give the
+          # same result: `b (> 1.5)` has no possibilities with b locked either.
+          index = index_with('b' => { '1.0' => { 'c' => '>= 0' } }, 'c' => { '1.1' => { 'b' => '> 1.5' } })
+          base = DependencyGraph.new
+          base.add_vertex('b', index.specs['b'].first, true)
+          base.add_vertex('c', index.specs['c'].first, true)
+
+          resolved = described_class.new(index, TestUI.new).
+                     resolve([Gem::Dependency.new('b', '>= 0')], base).map(&:payload).map(&:to_s)
+          expect(resolved).to match_array(['b (1.0)', 'c (1.1)'])
+        end
+
+        it 'does not let an ignored requirement take part in conflicts, whatever the requirement order' do
+          # `a (> 2.0)` has no possibilities and is ignored; the other two
+          # requirements are satisfied by a 2.0.a.
+          index = index_with('a' => { '2.0.a' => { 'd' => '>= 0' }, '2.0' => {} }, 'd' => { '1.0' => {} })
+          demands = [['a', '= 2.0.a'], ['a', '>= 0'], ['a', '> 2.0']]
+
+          demands.permutation.each do |order|
+            expect(resolve(index, order)).to match_array(['a (2.0.a)', 'd (1.0)'])
+          end
+        end
+      end
+
       it 'only cleans up orphaned vertices after swapping' do
         index = TestIndex.new(
           'a' => [

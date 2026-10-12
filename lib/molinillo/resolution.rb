@@ -160,6 +160,8 @@ module Molinillo
         # Keyed by identity: requirements that are equal but come from different
         # parents must keep their own parent, whatever the provider's `eql?`.
         @parents_of = Hash.new { |h, k| h[k] = [] }.compare_by_identity
+        @search_results = {}.compare_by_identity
+        @dependency_names = {}.compare_by_identity
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -250,6 +252,24 @@ module Molinillo
       include Molinillo::Delegates::ResolutionState
       include Molinillo::Delegates::SpecificationProvider
 
+      # The provider contract declares these queries pure. Keep successful
+      # answers local to this resolution, by input identity (not value equality
+      # across requirements from different parents). Duplicate search arrays so
+      # callers cannot mutate the cache or the provider's original array.
+      def search_for(dependency)
+        @search_results.fetch(dependency) do
+          @search_results[dependency] = super.dup.freeze
+        end.dup
+      end
+
+      def name_for(dependency)
+        @dependency_names.fetch(dependency) do
+          @dependency_names[dependency] = super
+        end
+      end
+
+      public :search_for, :name_for
+
       # Processes the topmost available {RequirementState} on the stack
       # @return [void]
       def process_topmost_state
@@ -284,15 +304,15 @@ module Molinillo
       # {#requested} dependencies
       # @return [void]
       def push_initial_state
-        graph = DependencyGraph.new.tap do |dg|
-          original_requested.each do |requested|
-            vertex = dg.add_vertex(name_for(requested), nil, true)
-            vertex.explicit_requirements << requested
-          end
-          dg.tag(:initial_state)
+        graph = DependencyGraph.new
+        requested = original_requested.reject { |r| ignorable_missing_requirement?(r, graph) }
+        requested.each do |requirement|
+          vertex = graph.add_vertex(name_for(requirement), nil, true)
+          vertex.explicit_requirements << requirement
         end
+        graph.tag(:initial_state)
 
-        push_state_for_requirements(original_requested, true, graph)
+        push_state_for_requirements(requested, true, graph)
       end
 
       # Unwinds the states stack because a conflict has been encountered
@@ -828,7 +848,8 @@ module Molinillo
       #   activated
       # @return [void]
       def require_nested_dependencies_for(possibility_set)
-        nested_dependencies = dependencies_for(possibility_set.latest_version)
+        nested_dependencies = dependencies_for(possibility_set.latest_version).
+                              reject { |d| ignorable_missing_requirement?(d, activated) }
         debug(depth) { "Requiring nested dependencies (#{nested_dependencies.join(', ')})" }
         nested_dependencies.each do |d|
           activated.add_child_vertex(name_for(d), nil, [name_for(possibility_set.latest_version)], d)
@@ -963,6 +984,35 @@ module Molinillo
       def state_for_requirement?(requirement)
         reqs = @state_requirements_by_name[name_for(requirement)]
         reqs ? reqs.any? { |r| r == requirement } : false
+      end
+
+      # Whether `requirement` has no possibilities and the
+      # {#specification_provider} allows it to be missing, in which case it is
+      # ignored before it is added to the graph: it never gets an edge (so it
+      # cannot close a cycle) or an explicit requirement entry (so it never
+      # takes part in conflicts).
+      # @param [Object] requirement
+      # @param [DependencyGraph] graph the graph the requirement would be added to
+      # @return [Boolean]
+      def ignorable_missing_requirement?(requirement, graph)
+        return allow_missing?(requirement) if search_for(requirement).empty?
+        name = name_for(requirement)
+        return false unless locked_requirement_named(name)
+
+        # For a locked name the possibilities are the search results that
+        # satisfy the locked requirement, which the provider may judge in the
+        # context of the vertex; check them as if the requirement had been
+        # added, then undo that.
+        graph.tag(:ignorable_missing_requirement)
+        vertex = graph.add_vertex(name, nil, false)
+        vertex.explicit_requirements << requirement
+        begin
+          missing = locked_requirement_possibility_set(requirement, graph).empty?
+        ensure
+          vertex.explicit_requirements.pop
+          graph.rewind_to(:ignorable_missing_requirement)
+        end
+        missing && allow_missing?(requirement)
       end
 
       # Removes a requirement that is allowed to be missing from the vertex it

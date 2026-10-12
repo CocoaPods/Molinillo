@@ -17,6 +17,11 @@
   on the stack, removing a quadratic cost from resolving large graphs.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Reuse successful pure provider searches and names within a resolution,
+  keyed by input identity. Returned search arrays remain independent, failed
+  searches are not cached, and context-sensitive satisfaction checks are unchanged.
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming
@@ -96,6 +101,13 @@
   ignore only that requirement instead of removing the whole vertex, which
   dropped other (satisfiable) requirements on the same name, removed already
   activated specs from the result, or crashed with a `NoMethodError`.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+* Ignore a requirement that `allow_missing?` lets be missing before it is added
+  to the dependency graph, so that it can no longer close a circular dependency
+  or take part in conflicts with the other requirements on the same name. This
+  calls `search_for` (and, when it finds nothing, `allow_missing?`) for each
+  requirement when it is added, rather than only when it is processed.  
   [Samuel Giddins](https://github.com/segiddins)
 
 
