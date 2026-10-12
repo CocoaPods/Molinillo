@@ -4,11 +4,13 @@
 
 ##### Enhancements
 
-* None.  
+* Run fuzz specs on current Ruby versions with distinct extra random seeds and
+  a working naive-resolver oracle.
+  [Samuel Giddins](https://github.com/segiddins)
 
 ##### Bug Fixes
 
-* None.  
+* None.
 
 
 ## 0.8.0 (2021-08-09)
