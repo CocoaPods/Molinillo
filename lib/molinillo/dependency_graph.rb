@@ -144,11 +144,19 @@ module Molinillo
       end
     end
 
+    # Adds a vertex with the given name (see {#add_vertex}) and an edge to it
+    # from each of the named parents. A `nil` parent name marks `requirement`
+    # as an explicit requirement of a root vertex.
+    #
+    # This is not atomic: if it raises, the changes made before the error
+    # remain in the graph. To recover, {#tag} the graph beforehand and
+    # {#rewind_to} that tag.
     # @param [String] name
     # @param [Object] payload
     # @param [Array<String>] parent_names
     # @param [Object] requirement the requirement that is requiring the child
-    # @return [void]
+    # @raise [CircularDependencyError] see {#add_edge}
+    # @return [Vertex] the vertex that was added to `self`
     def add_child_vertex(name, payload, parent_names, requirement)
       root = !parent_names.delete(nil) { true }
       vertex = add_vertex(name, payload, root)
@@ -193,6 +201,10 @@ module Molinillo
     # @param [Vertex] origin
     # @param [Vertex] destination
     # @param [Object] requirement the requirement that this edge represents
+    # @raise [CircularDependencyError] if the edge would create a cycle. Building
+    #   the error calls `possibilities` on the payload of each vertex on the
+    #   cycle, so cycle detection requires resolver payloads (which respond to
+    #   `possibilities`); other payloads, including `nil`, raise `NoMethodError`.
     # @return [Edge] the added edge
     def add_edge(origin, destination, requirement)
       if destination.path_to?(origin)

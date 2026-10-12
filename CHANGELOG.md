@@ -8,6 +8,10 @@
   a working naive-resolver oracle.
   [Samuel Giddins](https://github.com/segiddins)
 
+* Document resolver-payload requirements for graph cycle errors and the
+  tag/rewind recovery contract for non-atomic child-vertex additions.
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming
