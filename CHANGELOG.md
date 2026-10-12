@@ -36,6 +36,15 @@
   while preserving providers whose specifications define only `==`.
   [Samuel Giddins](https://github.com/segiddins)
 
+* Prune redundant requirement trees from terminal `VersionConflict` explanations
+  when a smaller unsatisfiable subset can be verified in the conflict-time
+  context. `conflicts` contains reporting copies with pruned `requirement_trees`;
+  `original_conflicts` retains the complete trees, and `Conflict#requirements`
+  remains unchanged. Circular, stale, or context-sensitive conflicts that cannot
+  be safely reduced keep their original explanations. This affects reporting
+  only, not resolution or backtracking.
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming

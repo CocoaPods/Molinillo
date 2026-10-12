@@ -173,6 +173,8 @@ Molinillo could not find compatible versions for possibility named "missing":
         end
       end
 
+      # The fixture index contains only json 1.8.0: chef's upper bound alone
+      # is unsatisfiable, whereas berkshelf's json requirement is redundant.
       it 'raises conflicts with requirement trees' do
         test_case = TestCase.all.find { |tc| tc.name == 'yields conflicts if a child dependency is not resolved' }
         index_class = TestIndex
@@ -181,16 +183,11 @@ Molinillo could not find compatible versions for possibility named "missing":
           expect(conflict.message).to eq <<-EOS.strip
 Unable to satisfy the following requirements:
 
-- `json (>= 1.7.7)` required by `berkshelf (2.0.7)`
 - `json (<= 1.7.7, >= 1.4.4)` required by `chef (10.26)`
           EOS
           expect(conflict.message_with_trees(:version_for_spec => lambda(&:version))).to eq <<-EOS.strip
 Molinillo could not find compatible versions for possibility named "json":
   In user-specified dependency:
-    chef_app_error (>= 0) was resolved to 1.0.0, which depends on
-      berkshelf (~> 2.0) was resolved to 2.0.7, which depends on
-        json (>= 1.7.7)
-
     chef_app_error (>= 0) was resolved to 1.0.0, which depends on
       chef (~> 10.26) was resolved to 10.26, which depends on
         json (<= 1.7.7, >= 1.4.4)

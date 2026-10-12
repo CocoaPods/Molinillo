@@ -364,7 +364,7 @@ module Molinillo
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
           forget_states(sliced_states) if sliced_states
-          raise_error_unless_state(c)
+          raise_error_unless_state(c, sliced_states && sliced_states.last)
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
           state.unused_unwind_options = unwind_options
@@ -378,11 +378,13 @@ module Molinillo
       # Raises a VersionConflict error, or any underlying error, if there is no
       # current state
       # @return [void]
-      def raise_error_unless_state(conflicts)
+      def raise_error_unless_state(conflicts, conflict_state = nil)
         return if state
 
         error = conflicts.values.map(&:underlying_error).compact.first
-        raise error || VersionConflict.new(conflicts, specification_provider)
+        raise error || VersionConflict.new(conflicts, specification_provider,
+                                           conflict_state && conflict_state.activated,
+                                           conflict_state && conflict_state.name)
       end
 
       # @return [UnwindDetails] Details of the nearest index to which we could unwind

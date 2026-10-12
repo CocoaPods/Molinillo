@@ -56,6 +56,11 @@ module Molinillo
     #   resolution to fail
     attr_reader :conflicts
 
+    # @return [{String => Resolution::Conflict}] the unabridged conflicts, including
+    #   all original requirement trees. Reporting copies in {#conflicts} may have
+    #   redundant trees removed; their requirements remain unmodified.
+    attr_reader :original_conflicts
+
     # @return [SpecificationProvider] the specification provider used during
     #   resolution
     attr_reader :specification_provider
@@ -63,22 +68,127 @@ module Molinillo
     # Initializes a new error with the given version conflicts.
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
     # @param [SpecificationProvider] specification_provider see {#specification_provider}
-    def initialize(conflicts, specification_provider)
+    # @param [DependencyGraph, nil] conflict_graph the graph before the final unwind
+    #   (without it, requirement trees are left unchanged)
+    # @param [String, nil] conflict_name the final conflicting name; other cached
+    #   conflicts have no reliable graph snapshot and retain their original trees
+    def initialize(conflicts, specification_provider, conflict_graph = nil, conflict_name = nil)
+      @original_conflicts = conflicts
+      @specification_provider = specification_provider
+      @conflicts = conflicts.each_with_object({}) do |(name, conflict), copies|
+        copies[name] = conflict.dup
+        graph = !conflict_name || conflict_name == name ? conflict_graph : nil
+        copies[name].requirement_trees = explanation_trees(conflict, name, graph)
+      end
+
       pairs = []
-      conflicts.values.flat_map(&:requirements).each do |conflicting|
-        conflicting.each do |source, conflict_requirements|
-          conflict_requirements.each do |c|
-            pairs << [c, source]
+      @conflicts.each do |name, conflict|
+        leaves = conflict.requirement_trees.map(&:last)
+        pruned = conflict.requirement_trees.size < conflicts[name].requirement_trees.size
+        conflict.requirements.each do |source, conflict_requirements|
+          conflict_requirements.each do |r|
+            next if pruned && !r.equal?(conflict.locked_requirement) && leaves.none? { |leaf| leaf.equal?(r) }
+            pairs << [r, source]
           end
         end
       end
 
       super "Unable to satisfy the following requirements:\n\n" \
         "#{pairs.map { |r, d| "- `#{r}` required by `#{d}`" }.join("\n")}"
-
-      @conflicts = conflicts
-      @specification_provider = specification_provider
     end
+
+    # Find an inclusion-minimal local explanation, with the triggering
+    # requirement and lock held fixed. This is reporting only: do not use it
+    # for binding requirements or mutate the live resolution graph/conflicts.
+    # Keep the safety checks and deletion proof under one rescue boundary so
+    # uncertain provider/context answers always retain the original evidence.
+    def explanation_trees(conflict, name, graph) # rubocop:disable Metrics/CyclomaticComplexity
+      trees = conflict.requirement_trees
+      return trees unless graph && !conflict.underlying_error && trees.size > 1
+      vertex = graph.vertex_named(name)
+      return trees unless vertex
+      graph_requirements = vertex.explicit_requirements + vertex.incoming_edges.map(&:requirement)
+      return trees unless trees.all? { |t| !t.empty? && graph_requirements.any? { |r| r.equal?(t.last) } }
+      return trees unless trees.any? { |t| t.last.equal?(conflict.requirement) }
+      # Older conflicts can have a different context. Never infer a core using
+      # a newer activation graph, particularly for context-sensitive providers.
+      return trees unless conflict.activated_by_name.all? do |n, spec|
+        v = graph.vertex_named(n)
+        payload = v && v.payload
+        payload = payload.latest_version if payload.respond_to?(:latest_version)
+        payload == spec
+      end
+
+      possibilities = search_for(conflict.requirement)
+      requirements = trees.map(&:last)
+      requirements << conflict.locked_requirement if conflict.locked_requirement
+      context = explanation_graph(graph)
+      baseline = possibilities.map do |possibility|
+        context.vertex_named(name).payload = possibility
+        requirements.map { |r| requirement_satisfied_by?(r, context, possibility) }
+      end
+      return trees if baseline.any?(&:all?)
+
+      kept = trees.dup
+      # Drop later/transitive occurrences first; preserve explicit roots when
+      # either can explain the same failure. Never subtract by value equality.
+      order = trees.each_with_index.sort_by { |tree, i| [tree.size == 1 ? 0 : 1, i] }.map(&:first)
+      order.reverse_each do |tree|
+        next if tree.last.equal?(conflict.requirement)
+        remaining = kept.reject { |t| t.equal?(tree) }
+        subset = remaining.map(&:last)
+        subset << conflict.locked_requirement if conflict.locked_requirement
+        reduced_context = explanation_graph(graph, name, subset)
+        stable = true
+        satisfiable = possibilities.each_with_index.any? do |possibility, i|
+          reduced_context.vertex_named(name).payload = possibility
+          checks = subset.map do |r|
+            original = requirements.index { |original_r| original_r.equal?(r) }
+            checked = requirement_satisfied_by?(r, reduced_context, possibility)
+            stable = false if checked != baseline[i][original]
+            checked
+          end
+          checks.all?
+        end
+        # A deleted requirement may enable/disable a prerelease or otherwise
+        # change the provider's answers: deletion minimality is unsafe then.
+        return trees unless stable
+        kept = remaining unless satisfiable
+      end
+      kept
+    rescue StandardError
+      # Reporting must never replace the original resolver failure with a
+      # provider/context exception. Keep all evidence when a check is uncertain.
+      trees
+    end
+    private :explanation_trees
+
+    # Copy just the graph's vertices and edges, preserving payload/requirement
+    # identities but not its action log. Even on older graph implementations,
+    # reporting cannot append to or rewind the resolver's live undo history.
+    def explanation_graph(graph, name = nil, requirements = nil)
+      copy = DependencyGraph.new
+      graph.each do |vertex|
+        v = DependencyGraph::Vertex.new(vertex.name, vertex.payload)
+        v.root = vertex.root?
+        v.explicit_requirements.concat(vertex.explicit_requirements.select do |r|
+          vertex.name != name || requirements.any? { |kept| kept.equal?(r) }
+        end)
+        copy.vertices[v.name] = v
+      end
+      graph.each do |vertex|
+        vertex.outgoing_edges.each do |edge|
+          next if edge.destination.name == name && requirements.none? { |kept| kept.equal?(edge.requirement) }
+          origin = copy.vertex_named(edge.origin.name)
+          destination = copy.vertex_named(edge.destination.name)
+          e = DependencyGraph::Edge.new(origin, destination, edge.requirement)
+          origin.outgoing_edges << e
+          destination.incoming_edges << e
+        end
+      end
+      copy
+    end
+    private :explanation_graph
 
     require_relative 'delegates/specification_provider'
     include Delegates::SpecificationProvider
