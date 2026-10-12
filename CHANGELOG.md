@@ -4,6 +4,16 @@
 
 ##### Enhancements
 
+* Add `SpecificationProvider#prune_doomed_possibilities?` (default false). When
+  a provider opts in, possibilities that cannot be part of any resolution (a
+  dependency that no available version satisfies, or that conflicts with a
+  requirement every resolution must satisfy) are removed from search results,
+  so the resolver does not re-derive the same failure after every backtrack.
+  `VersionConflict#pruned_possibilities` and the error messages explain which
+  relevant versions were not considered and why; the other pruned versions are
+  listed (up to five) in `#other_pruned_possibilities` and a trailing section.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 * Run fuzz specs on current Ruby versions with distinct extra random seeds and
   a working naive-resolver oracle.
   [Samuel Giddins](https://github.com/segiddins)

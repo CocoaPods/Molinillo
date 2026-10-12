@@ -32,14 +32,119 @@ module Molinillo
     end
   end
 
+  # Formats the possibilities that were pruned because they cannot be part of
+  # any resolution (see {SpecificationProvider#prune_doomed_possibilities?}).
+  module PrunedPossibilitiesMessage
+    # How many possibilities {#pruned_possibilities_message} lists in its
+    # section for {#other_pruned_possibilities}.
+    MAX_OTHER_PRUNED_POSSIBILITIES = 5
+
+    # @return [Boolean] whether the message lists {#other_pruned_possibilities}:
+    #   only when no relevant pruned possibility is listed, or when pruning may
+    #   have changed the explanation itself (see
+    #   {#other_pruned_possibilities_affect_explanation?}).
+    def show_other_pruned_possibilities?
+      pruned_possibilities.empty? || other_pruned_possibilities_affect_explanation?
+    end
+
+    # @return [Boolean] whether one of {#other_pruned_possibilities} fails (at
+    #   the end of its chain of reasons) on a name the explanation reports a
+    #   conflict for. Trying such a version would have led the search into the
+    #   reported conflict, so without pruning that conflict may have been
+    #   explained differently (or another conflict reported).
+    def other_pruned_possibilities_affect_explanation?
+      @other_pruned_possibilities_affect_explanation ? true : false
+    end
+
+    # @param [String] indent prefix for every line
+    # @return [String] the sections explaining {#pruned_possibilities} and
+    #   then, if {#show_other_pruned_possibilities?},
+    #   {#other_pruned_possibilities} (at most
+    #   {MAX_OTHER_PRUNED_POSSIBILITIES} of them), each starting with two
+    #   newlines, or an empty string if nothing is listed
+    def pruned_possibilities_message(indent = '')
+      relevant = unique_pruning_reasons(pruned_possibilities)
+      other = unique_pruning_reasons(other_pruned_possibilities).
+              reject { |r| relevant.any? { |o| o.possibility.equal?(r.possibility) } }
+      message = ''.dup
+      unless relevant.empty?
+        message << "\n\n#{indent}These versions were not considered, because they cannot be part of any resolution:\n"
+        message << pruning_reason_lines(relevant, indent).join("\n")
+      end
+      if !other.empty? && show_other_pruned_possibilities?
+        message << "\n\n#{indent}Other versions that were not considered, " \
+          "because they cannot be part of any resolution:\n"
+        lines = pruning_reason_lines(other.first(MAX_OTHER_PRUNED_POSSIBILITIES), indent)
+        more = other.size - MAX_OTHER_PRUNED_POSSIBILITIES
+        lines << "#{indent}- (and #{more} more)" if more > 0
+        message << lines.join("\n")
+      end
+      message
+    end
+
+    private
+
+    # @param [Array<String>] conflict_names
+    # @param [Proc] name_for
+    # @return [Boolean] see {#other_pruned_possibilities_affect_explanation?}
+    def other_pruned_possibilities_fail_on?(conflict_names, name_for)
+      other_pruned_possibilities.each_value.any? do |reasons|
+        reasons.any? do |reason|
+          reason.failing_dependencies.any? { |d| conflict_names.include?(name_for.call(d)) }
+        end
+      end
+    end
+
+    def unique_pruning_reasons(pruned)
+      reasons = []
+      pruned.each_value do |rs|
+        rs.each { |r| reasons << r unless reasons.any? { |o| o.possibility.equal?(r.possibility) } }
+      end
+      reasons
+    end
+
+    def pruning_reason_lines(reasons, indent)
+      reasons.flat_map do |reason|
+        first, *rest = reason.explanation
+        ["#{indent}- #{first}"] + rest.map { |l| "#{indent}  #{l}" }
+      end
+    end
+  end
+
   # An error caused by attempting to fulfil a dependency that was circular
   #
   # @note This exception will be thrown if and only if a {Vertex} is added to a
   #   {DependencyGraph} that has a {DependencyGraph::Vertex#path_to?} an
   #   existing {DependencyGraph::Vertex}
   class CircularDependencyError < ResolverError
+    include PrunedPossibilitiesMessage
+
     # [Set<Object>] the dependencies responsible for causing the error
     attr_reader :dependencies
+
+    # @return [{String => Array<PruningReason>}] see
+    #   {VersionConflict#pruned_possibilities}
+    def pruned_possibilities
+      @pruned_possibilities || {}
+    end
+    attr_writer :pruned_possibilities
+
+    # @return [{String => Array<PruningReason>}] see
+    #   {VersionConflict#other_pruned_possibilities}
+    def other_pruned_possibilities
+      @other_pruned_possibilities || {}
+    end
+    attr_writer :other_pruned_possibilities
+
+    # @return [Boolean] see
+    #   {PrunedPossibilitiesMessage#other_pruned_possibilities_affect_explanation?}
+    attr_writer :other_pruned_possibilities_affect_explanation
+
+    # @return [String] the error message, followed by
+    #   {#pruned_possibilities_message} if possibilities were pruned
+    def message
+      super + pruned_possibilities_message
+    end
 
     # Initializes a new error with the given circular vertices.
     # @param [Array<DependencyGraph::Vertex>] vertices the vertices in the dependency
@@ -50,8 +155,82 @@ module Molinillo
     end
   end
 
+  # Why a possibility was pruned because it cannot be part of any resolution
+  # (see {SpecificationProvider#prune_doomed_possibilities?}).
+  #
+  # @attr [Object] possibility the pruned possibility
+  # @attr [Object] dependency the dependency of {#possibility} that no
+  #   resolution can satisfy
+  # @attr [Symbol] kind why {#dependency} cannot be satisfied:
+  #   `:missing` (it has no possibilities at all), `:incompatible` (every
+  #   possibility conflicts with one of {#excluded_by}), or
+  #   `:candidates_doomed` (every remaining possibility was itself pruned, see
+  #   {#candidate_reasons})
+  # @attr [Array<PruningReason>] candidate_reasons for `:candidates_doomed`,
+  #   why each possibility for {#dependency} was pruned
+  # @attr [Array<Array>] excluded_by requirements that every resolution must
+  #   satisfy and that exclude some (for `:incompatible`, all) possibilities
+  #   for {#dependency}, as `[requirement, source]` pairs
+  PruningReason = Struct.new(:possibility, :dependency, :kind, :candidate_reasons, :excluded_by)
+
+  class PruningReason
+    # @param [Integer] depth how many levels of {#candidate_reasons} to include
+    # @param [Integer] max_candidates how many candidate reasons to include per
+    #   level
+    # @return [Array<String>] a human-readable explanation, one line per
+    #   reason, nested reasons indented by two spaces
+    def explanation(depth = 3, max_candidates = 2) # rubocop:disable Metrics/CyclomaticComplexity
+      line = "`#{possibility}` depends on `#{dependency}`, ".dup
+      line << case kind
+              when :missing
+                'which no available version satisfies'
+              when :incompatible
+                "but every version that satisfies it conflicts with #{excluded_by_text}"
+              else
+                'and every version that could satisfy it cannot be used either' +
+                  (excluded_by.empty? ? '' : " (or conflicts with #{excluded_by_text})")
+              end
+      lines = [line]
+      return lines unless kind == :candidates_doomed
+      line << ':'
+      if depth <= 1
+        lines << '  - ...'
+        return lines
+      end
+      candidate_reasons.first(max_candidates).each do |reason|
+        first, *rest = reason.explanation(depth - 1, max_candidates)
+        lines << "  - #{first}"
+        rest.each { |l| lines << "  #{l}" }
+      end
+      more = candidate_reasons.size - max_candidates
+      lines << "  - (and #{more} more)" if more > 0
+      lines
+    end
+
+    # @return [Array<Object>] the dependencies at the end of this reason's
+    #   chain: {#dependency} itself, or for `:candidates_doomed` the failing
+    #   dependencies of {#candidate_reasons}
+    def failing_dependencies
+      return [dependency] unless kind == :candidates_doomed
+      candidate_reasons.flat_map(&:failing_dependencies)
+    end
+
+    # @return [String] a human-readable explanation
+    def to_s
+      explanation.join("\n")
+    end
+
+    private
+
+    def excluded_by_text
+      excluded_by.map { |requirement, source| "`#{requirement}` (required by #{source})" }.join(' and ')
+    end
+  end
+
   # An error caused by conflicts in version
   class VersionConflict < ResolverError
+    include PrunedPossibilitiesMessage
+
     # @return [{String => Resolution::Conflict}] the conflicts that caused
     #   resolution to fail
     attr_reader :conflicts
@@ -65,6 +244,19 @@ module Molinillo
     #   resolution
     attr_reader :specification_provider
 
+    # @return [{String => Array<PruningReason>}] for each name involved in the
+    #   conflicts, the possibilities that were not considered because they
+    #   cannot be part of any resolution, and why. Empty unless the provider
+    #   opts in to {SpecificationProvider#prune_doomed_possibilities?}.
+    attr_reader :pruned_possibilities
+
+    # @return [{String => Array<PruningReason>}] every other possibility that
+    #   was not considered because it cannot be part of any resolution: those
+    #   not relevant to the explanation, or for names the (possibly abridged)
+    #   explanation no longer mentions. Listed, up to a limit, in a trailing
+    #   section of {#message} and {#message_with_trees}.
+    attr_reader :other_pruned_possibilities
+
     # Initializes a new error with the given version conflicts.
     # @param [{String => Resolution::Conflict}] conflicts see {#conflicts}
     # @param [SpecificationProvider] specification_provider see {#specification_provider}
@@ -72,7 +264,12 @@ module Molinillo
     #   (without it, requirement trees are left unchanged)
     # @param [String, nil] conflict_name the final conflicting name; other cached
     #   conflicts have no reliable graph snapshot and retain their original trees
-    def initialize(conflicts, specification_provider, conflict_graph = nil, conflict_name = nil)
+    # @param [{String => Array<PruningReason>}] pruned_possibilities see {#pruned_possibilities}
+    # @param [{String => Array<PruningReason>}] other_pruned_possibilities see
+    #   {#other_pruned_possibilities}
+    def initialize(conflicts, specification_provider, # rubocop:disable Metrics/ParameterLists
+                   conflict_graph = nil, conflict_name = nil,
+                   pruned_possibilities = {}, other_pruned_possibilities = {})
       @original_conflicts = conflicts
       @specification_provider = specification_provider
       @conflicts = conflicts.each_with_object({}) do |(name, conflict), copies|
@@ -80,6 +277,7 @@ module Molinillo
         graph = !conflict_name || conflict_name == name ? conflict_graph : nil
         copies[name].requirement_trees = explanation_trees(conflict, name, graph)
       end
+      initialize_pruned_possibilities(pruned_possibilities, other_pruned_possibilities)
 
       pairs = []
       @conflicts.each do |name, conflict|
@@ -94,10 +292,34 @@ module Molinillo
       end
 
       super "Unable to satisfy the following requirements:\n\n" \
-        "#{pairs.map { |r, d| "- `#{r}` required by `#{d}`" }.join("\n")}"
+        "#{pairs.map { |r, d| "- `#{r}` required by `#{d}`" }.join("\n")}" \
+        "#{pruned_possibilities_message}"
     end
 
+    # Retain only pruning reasons relevant to the reporting conflict.
+    # @return [void]
+    def initialize_pruned_possibilities(pruned_possibilities, other_pruned_possibilities)
+      # Only report pruned possibilities for names that the (possibly
+      # abridged) explanation still mentions.
+      @pruned_possibilities = pruned_possibilities
+      @other_pruned_possibilities = other_pruned_possibilities
+      unless pruned_possibilities.empty?
+        reported_names = @conflicts.flat_map do |name, conflict|
+          [name] + conflict.requirement_trees.flatten(1).map { |r| name_for(r) }
+        end
+        @pruned_possibilities, dropped = pruned_possibilities.partition { |name, _| reported_names.include?(name) }.
+                                         map(&:to_h)
+        @other_pruned_possibilities = dropped.merge(other_pruned_possibilities) { |_, a, b| a + b }
+      end
+      unless @other_pruned_possibilities.empty?
+        @other_pruned_possibilities_affect_explanation =
+          other_pruned_possibilities_fail_on?(@conflicts.keys, method(:name_for))
+      end
+    end
+    private :initialize_pruned_possibilities
+
     # Find an inclusion-minimal local explanation, with the triggering
+
     # requirement and lock held fixed. This is reporting only: do not use it
     # for binding requirements or mutate the live resolution graph/conflicts.
     # Keep the safety checks and deletion proof under one rescue boundary so
@@ -204,6 +426,8 @@ module Molinillo
     #   messages for each conflict
     # @option opts [Proc] :version_for_spec A proc that returns the version number for a
     #   possibility
+    # The message ends with {#pruned_possibilities_message}, if any possibilities
+    # were pruned (relevant ones first, then the others).
     def message_with_trees(opts = {})
       solver_name = opts.delete(:solver_name) { self.class.name.split('::').first }
       possibility_type = opts.delete(:possibility_type) { 'possibility named' }
@@ -251,9 +475,10 @@ module Molinillo
         end
       end
 
-      conflicts.sort.reduce(''.dup) do |o, (name, conflict)|
+      message = conflicts.sort.reduce(''.dup) do |o, (name, conflict)|
         o << full_message_for_conflict.call(name, conflict)
       end.strip
+      message << pruned_possibilities_message
     end
   end
 end

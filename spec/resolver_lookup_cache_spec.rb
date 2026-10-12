@@ -53,4 +53,63 @@ describe Molinillo::Resolver::Resolution do
     expect(resolution.name_for(dependency)).to eq('a')
     expect(resolution.public_methods).to include(:search_for, :name_for)
   end
+
+  describe 'dependencies_for' do
+    let(:dependent) do
+      Molinillo::TestSpecification.new('name' => 'b', 'version' => '1', 'dependencies' => { 'a' => '>= 0' })
+    end
+    let(:pruning_provider) do
+      Molinillo::TestIndex.new('a' => [spec], 'b' => [dependent]).tap do |index|
+        index.define_singleton_method(:prune_doomed_possibilities?) { true }
+      end
+    end
+    let(:new_resolution) do
+      ->(index) { described_class.new(index, Molinillo::TestUI.new, [], Molinillo::DependencyGraph.new) }
+    end
+
+    it 'reaches the provider on every call without the pruning opt-in' do
+      provider.specs['b'] = [dependent]
+      provider.define_singleton_method(:prune_doomed_possibilities?) { false }
+      expect(provider).to receive(:dependencies_for).with(dependent).twice.and_call_original
+      2.times { resolution.send(:dependencies_for, dependent) }
+    end
+
+    context 'with the pruning opt-in' do
+      let(:resolution) { new_resolution.call(pruning_provider) }
+
+      it 'asks the provider once per specification without sharing mutable result arrays' do
+        expect(pruning_provider).to receive(:dependencies_for).with(dependent).once.and_call_original
+        first = resolution.send(:dependencies_for, dependent)
+        expect(first.map(&:name)).to eq(['a'])
+        first.clear
+        expect(resolution.send(:dependencies_for, dependent).map(&:name)).to eq(['a'])
+        expect(dependent.dependencies.map(&:name)).to eq(['a'])
+      end
+
+      it 'keys the cache by specification identity' do
+        twin = Molinillo::TestSpecification.new('name' => 'b', 'version' => '1', 'dependencies' => { 'a' => '>= 0' })
+        expect(twin).to eq(dependent)
+        expect(pruning_provider).to receive(:dependencies_for).twice.and_call_original
+        2.times do
+          resolution.send(:dependencies_for, dependent)
+          resolution.send(:dependencies_for, twin)
+        end
+      end
+
+      it 'does not carry cached dependencies into another resolution' do
+        expect(pruning_provider).to receive(:dependencies_for).with(dependent).twice.and_call_original
+        resolution.send(:dependencies_for, dependent)
+        new_resolution.call(pruning_provider).send(:dependencies_for, dependent)
+      end
+
+      it 'does not cache exceptions or change their class and message' do
+        expect(pruning_provider).to receive(:dependencies_for).with(dependent).twice.
+          and_raise(Molinillo::NoSuchDependencyError.new(dependency))
+        2.times do
+          expect { resolution.send(:dependencies_for, dependent) }.
+            to raise_error(Molinillo::NoSuchDependencyError, /Unable to find/)
+        end
+      end
+    end
+  end
 end

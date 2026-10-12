@@ -160,8 +160,12 @@ module Molinillo
         # Keyed by identity: requirements that are equal but come from different
         # parents must keep their own parent, whatever the provider's `eql?`.
         @parents_of = Hash.new { |h, k| h[k] = [] }.compare_by_identity
+        @prune_doomed_possibilities = prune_doomed_possibilities?
+        @doom_knowledge = 0
+        activate_pruning if @prune_doomed_possibilities && [:eager, :adaptive].include?(prune_schedule)
         @search_results = {}.compare_by_identity
         @dependency_names = {}.compare_by_identity
+        @specification_dependencies = {}.compare_by_identity
         @unwind_search_domains = {}.compare_by_identity
       end
 
@@ -209,6 +213,7 @@ module Molinillo
       # Pushes the next possibility state and tags its graph before processing it.
       # @return [void]
       def push_possibility_state
+        skip_doomed_possibility_sets(state) if @pruning_active && !speculating_over_budget?
         debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
         state.pop_possibility_state.tap do |s|
           if s
@@ -297,6 +302,7 @@ module Molinillo
       # across requirements from different parents). Duplicate search arrays so
       # callers cannot mutate the cache or the provider's original array.
       def search_for(dependency)
+        note_reached_name(dependency) if @prune_doomed_possibilities
         @search_results.fetch(dependency) do
           @search_results[dependency] = super.dup.freeze
         end.dup
@@ -306,6 +312,20 @@ module Molinillo
         @dependency_names.fetch(dependency) do
           @dependency_names[dependency] = super
         end
+      end
+
+      # Only when pruning doomed possibilities, whose opt-in contract requires
+      # `dependencies_for` not to depend on resolution state: the derivation
+      # asks for the same specifications' dependencies many times. Without
+      # the opt-in, every call still reaches the provider, as in base
+      # Molinillo. Keyed by specification identity; the array is duplicated
+      # on return so callers cannot mutate the cache; exceptions are never
+      # cached.
+      def dependencies_for(specification)
+        return super unless @prune_doomed_possibilities
+        @specification_dependencies.fetch(specification) do
+          @specification_dependencies[specification] = super.dup.freeze
+        end.dup
       end
 
       public :search_for, :name_for
@@ -382,9 +402,38 @@ module Molinillo
         return if state
 
         error = conflicts.values.map(&:underlying_error).compact.first
-        raise error || VersionConflict.new(conflicts, specification_provider,
-                                           conflict_state && conflict_state.activated,
-                                           conflict_state && conflict_state.name)
+        pruned, other = pruning_evidence(conflicts, error)
+        if error
+          attach_pruning_reasons(error, conflicts, pruned, other)
+          raise error
+        end
+        raise VersionConflict.new(conflicts, specification_provider,
+                                  conflict_state && conflict_state.activated,
+                                  conflict_state && conflict_state.name,
+                                  pruned, other)
+      end
+
+      # Collect relevant and other pruning reasons in the original evaluation order.
+      # @return [Array<Hash>]
+      def pruning_evidence(conflicts, error)
+        pruned = @pruning_active ? pruned_possibilities_for(conflicts, error) : {}
+        other = @pruning_active ? other_pruned_possibilities_for(pruned) : {}
+        [pruned, other]
+      end
+
+      # Attach pruning evidence without replacing the underlying failure.
+      # @return [void]
+      def attach_pruning_reasons(error, conflicts, pruned, other)
+        if error.respond_to?(:pruned_possibilities=)
+          error.pruned_possibilities = pruned unless pruned.empty?
+          unless other.empty?
+            error.other_pruned_possibilities = other
+            # A circular dependency error reports the names in its cycle.
+            names = error.respond_to?(:dependencies) ? error.dependencies.map { |d| name_for(d) } : conflicts.keys
+            error.other_pruned_possibilities_affect_explanation =
+              error.send(:other_pruned_possibilities_fail_on?, names, method(:name_for))
+          end
+        end
       end
 
       # @return [UnwindDetails] Details of the nearest index to which we could unwind
@@ -821,6 +870,441 @@ module Molinillo
         states.select { |s| s.name == name }.map(&:requirement).uniq
       end
 
+      # @!group Doomed possibilities
+      #
+      # Only used when the provider opts in with
+      # {SpecificationProvider#prune_doomed_possibilities?}; otherwise
+      # {#search_for} is the provider's and none of this runs.
+      #
+      # A possibility is *doomed* when it cannot be part of any resolution of
+      # {#original_requested}, whatever else is chosen. Doomed possibilities are
+      # removed from {#search_for} results (unless every result is doomed, so
+      # that conflicts are still explained in terms of real versions), so the
+      # rest of the resolver -- activation, unwinding, conflict analysis --
+      # behaves as if they were not in the index. A conflict caused by such a
+      # possibility is thus found once, here, instead of being re-derived every
+      # time the search backtracks past it. Why each pruned possibility was
+      # doomed is recorded and reported by {VersionConflict}.
+      #
+      # A possibility is doomed if one of its dependencies (other than ones that
+      # may be ignored as missing) has no viable candidate. A candidate for a
+      # dependency on `name` is viable if it is not doomed and is returned by
+      # `search_for` for every *forced* requirement on `name`. A requirement is
+      # forced when every resolution must satisfy it: a user-requested
+      # requirement, or a dependency shared by every candidate of a name that
+      # is itself forced. Locks are ignored (a lock only narrows the
+      # candidates, so ignoring it errs towards "viable"), except that a
+      # requirement on a locked name that may be ignored as missing is never
+      # forced or unviable, and locked names are never pruned. See
+      # {SpecificationProvider#prune_doomed_possibilities?} for the provider
+      # contracts this relies on.
+
+      # Records that the resolver has searched for `dependency`'s name (called
+      # from {#search_for} when pruning is enabled).
+      # @param [Object] dependency
+      # @return [void]
+      def note_reached_name(dependency)
+        name = name_for(dependency)
+        return if reached_names.key?(name)
+        reached_names[name] = true
+        @doom_knowledge += 1
+      end
+
+      # Starts pruning doomed possibilities. This happens at the first conflict:
+      # until then the search has never backtracked, so pruning could only
+      # have saved the work of finding that first conflict, and resolutions
+      # without conflicts cost nothing extra.
+      # @return [void]
+      def activate_pruning
+        @pruning_active = true
+        @doom_knowledge += 1
+      end
+
+      # Records a conflict and starts deriving facts if this is the first one.
+      # @return [void]
+      def record_pruning_conflict
+        @conflict_count = @conflict_count.to_i + 1
+        activate_pruning unless @pruning_active
+      end
+
+      # Drops the doomed possibilities from the possibility sets that `state`
+      # would try next (the last ones), unless every remaining possibility is
+      # doomed. Possibilities are only checked when they are about to be tried,
+      # so the cost is proportional to the resolver's own work, and conflict
+      # analysis still sees the provider's search results.
+      # @param [DependencyState] state
+      # @return [void]
+      def skip_doomed_possibility_sets(state) # rubocop:disable Metrics/CyclomaticComplexity
+        sets = state.possibilities
+        return if sets.empty? || !state.requirement || locked_requirement_named(state.name)
+        forced_requirements
+        loop do
+          set = sets.last
+          viable = set.possibilities.reject { |p| doomed_possibility?(p) }
+          return if viable.size == set.possibilities.size
+          unless viable.empty?
+            record_pruned_possibilities(state.name, set.possibilities - viable)
+            sets[-1] = PossibilitySet.new(set.dependencies, viable)
+            return
+          end
+          # Keep the set if every remaining possibility is doomed, so that the
+          # conflict is found (and explained) with real versions.
+          return unless sets[0...-1].any? { |s| s.possibilities.any? { |p| !doomed_possibility?(p) } }
+          record_pruned_possibilities(state.name, set.possibilities)
+          sets.pop
+        end
+      end
+
+      # @param [Object] dependency
+      # @return [Array] the provider's possibilities for `dependency`
+      #   Searches are cached by identity and, per name and `hash`, by `==`:
+      #   different versions of a package often declare equal requirements.
+      #   (A requirement type whose `hash` is not consistent with `==` only
+      #   misses this cache.)
+      def unpruned_search_for(dependency)
+        @unpruned_search_for ||= {}.compare_by_identity
+        @unpruned_search_for.fetch(dependency) do
+          bucket = ((@unpruned_search_for_by_value ||= {})[[name_for(dependency), dependency.hash]] ||= [])
+          entry = bucket.find { |requirement, _| requirement == dependency }
+          unless entry
+            @derivation_work = @derivation_work.to_i + 1
+            candidates = with_no_such_dependency_error_handling { specification_provider.search_for(dependency) }
+            entry = [dependency, candidates]
+            bucket << entry
+          end
+          @unpruned_search_for[dependency] = entry.last
+        end
+      end
+
+      # @param [Object] possibility
+      # @return [Boolean] whether `possibility` cannot be part of any resolution
+      def doomed_possibility?(possibility)
+        !doomed_reason(possibility).nil?
+      end
+
+      # @param [Object] possibility
+      # @return [PruningReason, nil] why `possibility` cannot be part of any
+      #   resolution, or nil if it is viable (as far as can be told)
+      def doomed_reason(possibility)
+        doomed_reason_and_blockers(possibility, unreached_depth).first
+      end
+
+      # How many levels of names the resolver has not reached yet are explored
+      # by the lazy schedule.
+      UNREACHED_DEPTH = 1
+      # Depth used for "unlimited" exploration.
+      UNLIMITED_DEPTH = 1_000_000
+      private_constant :UNREACHED_DEPTH, :UNLIMITED_DEPTH
+
+      # When and how far doomed possibilities are derived. Not a provider
+      # setting: MOLINILLO_PRUNE_SCHEDULE selects it for experiments only.
+      #   lazy     -- start at the first conflict, explore one level of
+      #               unreached names
+      #   eager    -- start immediately, explore everything reachable
+      #   adaptive -- start immediately and explore everything reachable, but
+      #               only while the derivation work stays within a budget:
+      #               a fraction of the resolver's own work (iterations) that
+      #               doubles with each conflict (1/4 before the first, up to
+      #               4x after four). Over budget, no new possibility is
+      #               checked and unreached names are not explored, so a
+      #               resolution that never conflicts pays at most about a
+      #               quarter extra, while one that keeps conflicting gets
+      #               eager-like pruning.
+      # @return [Symbol]
+      def prune_schedule
+        @prune_schedule ||= (ENV['MOLINILLO_PRUNE_SCHEDULE'] || 'lazy').to_sym
+      end
+
+      # @return [Integer] how many levels of unreached names to explore now
+      def unreached_depth
+        case prune_schedule
+        when :eager then UNLIMITED_DEPTH
+        when :adaptive
+          return UNLIMITED_DEPTH unless derivation_over_budget?
+          @conflict_count.to_i.zero? ? 0 : UNREACHED_DEPTH
+        else UNREACHED_DEPTH
+        end
+      end
+
+      # The adaptive schedule only explores beyond reached names while the
+      # provider calls made to derive doomed possibilities stay within a
+      # budget that grows with the resolver's own work (iterations), so its
+      # cost stays within a constant factor of the unpruned search.
+      # @return [Boolean]
+      # Under the adaptive schedule, before the first conflict, derivation is
+      # speculative and stops when over budget. After it, the adaptive
+      # schedule is never weaker than the lazy one.
+      # @return [Boolean]
+      def speculating_over_budget?
+        prune_schedule == :adaptive && @conflict_count.to_i.zero? && derivation_over_budget?
+      end
+
+      def derivation_over_budget?
+        factor = 2**[@conflict_count.to_i, ADAPTIVE_MAX_DOUBLINGS].min
+        @derivation_work.to_i * ADAPTIVE_INITIAL_DIVISOR > factor * (@iteration_counter + ADAPTIVE_BUDGET_BASE)
+      end
+      ADAPTIVE_INITIAL_DIVISOR = Integer(ENV.fetch('MOLINILLO_ADAPTIVE_DIVISOR', 4))
+      ADAPTIVE_MAX_DOUBLINGS = 4
+      ADAPTIVE_BUDGET_BASE = Integer(ENV.fetch('MOLINILLO_ADAPTIVE_BASE', 256))
+      private_constant :ADAPTIVE_INITIAL_DIVISOR, :ADAPTIVE_MAX_DOUBLINGS, :ADAPTIVE_BUDGET_BASE
+
+      # Names the resolver has searched for are explored fully, other names
+      # only {UNREACHED_DEPTH} levels deep: beyond that, the candidates of a
+      # dependency are assumed viable (unless there are none, or the forced
+      # requirements exclude all of them). This keeps the cost proportional to
+      # the part of the index the resolver actually visits. A "viable" answer that relied on that
+      # assumption is provisional: it is reused until one of the names it
+      # assumed about (its blockers) is reached.
+      #
+      # @param [Object] possibility
+      # @param [Integer] depth how many more unreached names may be explored
+      # @return [Array(PruningReason, Array<String>)] the reason `possibility`
+      #   is doomed (nil if it is viable as far as can be told), and, for a
+      #   provisional answer, the unreached names it depends on (empty if the
+      #   answer is final)
+      def doomed_reason_and_blockers(possibility, depth) # rubocop:disable Metrics/CyclomaticComplexity
+        cache = (@doomed_reasons ||= {}.compare_by_identity)
+        return [cache[possibility], NO_BLOCKERS] if cache.key?(possibility)
+        provisional = (@provisionally_viable ||= {}.compare_by_identity)
+        if (entry = provisional[possibility])
+          blockers, explored_depth = entry
+          # The lazy schedule reuses an answer from a shallower exploration
+          # too (its depth is fixed, so that only happens within nested
+          # checks); the other schedules re-explore when allowed deeper.
+          reusable = prune_schedule == :lazy || explored_depth >= depth
+          return [nil, blockers] if reusable && blockers.none? { |n| reached_names.key?(n) }
+          provisional.delete(possibility)
+        end
+        # Treat a possibility as viable while its own dependencies are being
+        # checked: doomed-ness is a least fixed point, so dependency cycles
+        # alone never doom anything, and erring towards "viable" is always
+        # sound (it only prunes less).
+        cache[possibility] = nil
+        blockers = NO_BLOCKERS
+        @derivation_work = @derivation_work.to_i + 1
+        dependencies_for(possibility).each do |dependency|
+          reason, dependency_blockers = unviable_reason(possibility, dependency, depth)
+          if reason
+            @doom_knowledge += 1
+            return [cache[possibility] = reason, NO_BLOCKERS]
+          end
+          blockers |= dependency_blockers unless dependency_blockers.empty?
+        end
+        unless blockers.empty?
+          cache.delete(possibility)
+          provisional[possibility] = [blockers, depth]
+        end
+        [nil, blockers]
+      end
+
+      # @param [Object] possibility the possibility that depends on `requirement`
+      # @param [Object] requirement
+      # @param [Integer] depth how many more unreached names may be explored
+      # @return [Array(PruningReason, Array<String>)] why no resolution can
+      #   satisfy `requirement` (nil if it can, as far as can be told), and the
+      #   unreached names a provisional answer depends on
+      def unviable_reason(possibility, requirement, depth) # rubocop:disable Metrics/CyclomaticComplexity
+        candidates = unpruned_search_for(requirement)
+        if candidates.empty?
+          return [nil, NO_BLOCKERS] if allow_missing?(requirement)
+          return [PruningReason.new(possibility, requirement, :missing, [], []), NO_BLOCKERS]
+        end
+        # For a locked name, an empty set of locked possibilities lets a
+        # requirement that is allowed to be missing be ignored.
+        return [nil, NO_BLOCKERS] if may_be_ignored?(requirement)
+
+        name = name_for(requirement)
+        viable = viable_candidates_for(requirement)
+        excluding = viable.size < candidates.size ? forced_requirements_with_sources(name) : []
+        if viable.empty?
+          return [PruningReason.new(possibility, requirement, :incompatible, [], excluding), NO_BLOCKERS]
+        end
+        unless reached_names.key?(name)
+          return [nil, [name]] if depth <= 0 || speculating_over_budget?
+          depth -= 1
+        end
+
+        reasons = []
+        viable.each do |candidate|
+          reason, blockers = doomed_reason_and_blockers(candidate, depth)
+          return [nil, blockers] unless reason
+          reasons << reason
+        end
+        [PruningReason.new(possibility, requirement, :candidates_doomed, reasons, excluding), NO_BLOCKERS]
+      end
+
+      NO_BLOCKERS = [].freeze
+      private_constant :NO_BLOCKERS
+
+      # @return [Hash{String => true}] the names the resolver has searched for
+      def reached_names
+        @reached_names ||= {}
+      end
+
+      # @param [Object] requirement
+      # @return [Array] the possibilities for `requirement` that also match
+      #   every forced requirement on its name
+      def viable_candidates_for(requirement)
+        candidates = unpruned_search_for(requirement)
+        cache = (@viable_candidates ||= {}.compare_by_identity)
+        cache.fetch(requirement) do
+          name = name_for(requirement)
+          forced = forced_candidates[name]
+          cache[requirement] = if forced
+                                 # Membership is cached per possibility: the same
+                                 # possibilities are candidates of many requirements.
+                                 possibilities_in(candidates, forced)
+                               else
+                                 candidates
+                               end
+        end
+      end
+
+      # @return [Hash{String => Array}] for each name with forced requirements,
+      #   the possibilities that match all of them
+      def forced_candidates
+        @forced_candidates ||= forced_requirements.each_with_object({}) do |(name, requirements), h|
+          h[name] = requirements.map { |r, _| unpruned_search_for(r) }.reduce { |a, b| possibilities_in(a, b) }
+        end
+      end
+
+      # @param [String] name
+      # @return [Array<Array>] the forced requirements on `name` with their
+      #   sources, as `[requirement, source]` pairs
+      def forced_requirements_with_sources(name)
+        forced_requirements.fetch(name, [])
+      end
+
+      # @param [Array] possibilities
+      # @param [Array] others
+      # @return [Array] the elements of `possibilities` that are also in
+      #   `others`, compared with `eql?`/`hash` (identity for objects that do
+      #   not define them). This relies on possibilities that are `==` being
+      #   the same object or `eql?` (see
+      #   {SpecificationProvider#prune_doomed_possibilities?}).
+      def possibilities_in(possibilities, others)
+        set = ((@possibility_sets ||= {}.compare_by_identity)[others] ||=
+                 others.each_with_object({}) { |other, h| h[other] = true })
+        possibilities.select { |p| set.key?(p) }
+      end
+
+      # @return [Hash{String => Array<Array>}] the forced requirements, by name,
+      #   as `[requirement, source]` pairs. The source is the
+      #   {SpecificationProvider#name_for_explicit_dependency_source} for a
+      #   user request, or "every version of NAME" for a dependency that every
+      #   candidate of a forced NAME declares.
+      def forced_requirements # rubocop:disable Metrics/CyclomaticComplexity
+        forced = (@forced_requirements ||= {})
+        @forced_queue ||= original_requested.map { |r| [r, name_for_explicit_dependency_source, true] }
+        # The derivation is resumable: under the adaptive schedule it stops
+        # when over budget and continues later. A partial set of forced
+        # requirements is sound (it only prunes less).
+        until @forced_queue.empty?
+          break if speculating_over_budget?
+          requirement, source, unchecked = @forced_queue.shift
+          @derivation_work = @derivation_work.to_i + 1
+          next if unchecked && (unpruned_search_for(requirement).empty? || may_be_ignored?(requirement))
+          name = name_for(requirement)
+          requirements = (forced[name] ||= [])
+          next if requirements.any? { |r, _| r.equal?(requirement) }
+          requirements << [requirement, source]
+          @forced_candidates = nil
+          @viable_candidates = nil
+
+          candidates = requirements.map { |r, _| unpruned_search_for(r) }.reduce { |a, b| possibilities_in(a, b) }
+          # Doomed candidates are not excluded here (that would need a
+          # traversal of everything reachable from them); sharing a dependency
+          # across all candidates is then a stronger condition, so still sound.
+          next if candidates.empty?
+          shared = dependencies_for(candidates.first).select do |dependency|
+            candidates.all? { |candidate| dependencies_for(candidate).include?(dependency) }
+          end
+          shared.each do |dependency|
+            next if unpruned_search_for(dependency).empty? || may_be_ignored?(dependency)
+            @forced_queue << [dependency, "every version of `#{name}`"]
+          end
+        end
+        forced
+      end
+
+      # @param [Object] requirement
+      # @return [Boolean] whether `requirement` has possibilities but could
+      #   still be ignored as missing, because its name is locked and the
+      #   provider allows it to be missing.
+      def may_be_ignored?(requirement)
+        locked_requirement_named(name_for(requirement)) && allow_missing?(requirement)
+      end
+
+      # @param [String] name
+      # @param [Array] possibilities that were pruned from a search for `name`
+      # @return [void]
+      def record_pruned_possibilities(name, possibilities)
+        pruned = ((@pruned_possibilities ||= {})[name] ||= [])
+        possibilities.each { |p| pruned << p unless pruned.any? { |q| q.equal?(p) } }
+      end
+
+      # @param [{String => Conflict}] conflicts
+      # @param [ResolverError, nil] error the underlying error being raised
+      # @return [{String => Array<PruningReason>}] the pruned possibilities
+      #   that are relevant to `conflicts` and `error`, and why they were
+      #   pruned. A pruned possibility is relevant if
+      #   - its name is a conflicting name, and it is a possibility for every
+      #     requirement on that name in the conflict (so it would have been a
+      #     candidate), or
+      #   - its name is in one of the conflicts' requirement trees (or in the
+      #     cycle of a circular dependency `error`), and it is a possibility
+      #     for one of the requirements on that name there,
+      #   and it is not the version the explanation already shows was chosen.
+      def pruned_possibilities_for(conflicts, error = nil) # rubocop:disable Metrics/CyclomaticComplexity
+        return {} unless @pruned_possibilities
+        requirements_by_name = Hash.new { |h, k| h[k] = [] }
+        conflict_requirements = {}
+        chosen = []
+        conflicts.each do |name, conflict|
+          conflict_requirements[name] = conflict.requirements.values.flatten(1).
+                                        reject { |r| r.equal?(conflict.locked_requirement) }
+          conflict.requirement_trees.flatten(1).each { |r| requirements_by_name[name_for(r)] << r }
+          chosen.concat(conflict.activated_by_name.values)
+        end
+        if error.respond_to?(:dependencies)
+          error.dependencies.each { |d| requirements_by_name[name_for(d)] }
+        end
+
+        names = (conflict_requirements.keys + requirements_by_name.keys).uniq
+        names.each_with_object({}) do |name, h|
+          pruned = @pruned_possibilities[name]
+          next unless pruned
+          relevant = pruned.select do |possibility|
+            next false if chosen.any? { |c| c.equal?(possibility) }
+            if (requirements = conflict_requirements[name])
+              requirements.all? { |r| !possibilities_in([possibility], unpruned_search_for(r)).empty? }
+            elsif requirements_by_name[name].empty?
+              true # in the cycle of a circular dependency
+            else
+              requirements_by_name[name].any? { |r| !possibilities_in([possibility], unpruned_search_for(r)).empty? }
+            end
+          end
+          reasons = relevant.map { |p| doomed_reason(p) }.compact
+          h[name] = reasons unless reasons.empty?
+        end
+      end
+
+      # @param [{String => Array<PruningReason>}] relevant the result of
+      #   {#pruned_possibilities_for}
+      # @return [{String => Array<PruningReason>}] every other possibility that
+      #   was pruned during the resolution, and why
+      def other_pruned_possibilities_for(relevant)
+        return {} unless @pruned_possibilities
+        @pruned_possibilities.each_with_object({}) do |(name, pruned), h|
+          reported = relevant.fetch(name, [])
+          reasons = pruned.reject { |p| reported.any? { |r| r.possibility.equal?(p) } }.
+                    map { |p| doomed_reason(p) }.compact
+          h[name] = reasons unless reasons.empty?
+        end
+      end
+
+      # @!endgroup
+
       # @param [Object] requirement
       # @return [ResolutionState] the state whose `requirement` is the given
       #   `requirement`.
@@ -833,6 +1317,7 @@ module Molinillo
       # @return [Conflict] a {Conflict} that reflects the failure to activate
       #   the {#possibility} in conjunction with the current {#state}
       def create_conflict(underlying_error = nil)
+        record_pruning_conflict if @prune_doomed_possibilities
         vertex = activated.vertex_named(name)
         locked_requirement = locked_requirement_named(name)
 

@@ -465,7 +465,7 @@ Molinillo could not find compatible versions for possibility named "json":
         resolver = described_class.new(index, TestUI.new)
 
         expect { resolver.resolve([Gem::Dependency.new('p4', '>= 0')], DependencyGraph.new) }.
-          to raise_error(CircularDependencyError, 'There is a circular dependency between p4 and p2')
+          to raise_error(CircularDependencyError, /\AThere is a circular dependency between p4 and p2\b/)
       end
 
       it 'does not compare every new requirement against the whole state stack' do
@@ -874,6 +874,259 @@ Molinillo could not find compatible versions for possibility named "json":
           index = index_with('a' => { '1.0' => {}, '2.0.a' => { 'x' => '>= 0' } }, 'x' => { '1.0' => {} })
 
           expect(resolve(index, [['a', '>= 0']])).to eq(['a (1.0)'])
+        end
+      end
+
+      context 'when pruning doomed possibilities' do
+        # These examples describe the default (lazy) schedule.
+        around do |example|
+          schedule = ENV.delete('MOLINILLO_PRUNE_SCHEDULE')
+          begin
+            example.run
+          ensure
+            ENV['MOLINILLO_PRUNE_SCHEDULE'] = schedule if schedule
+          end
+        end
+
+        def index_for(specs, prune)
+          index = TestIndex.new(Hash.new([]).merge(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, deps|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps)
+            end
+          end))
+          index.define_singleton_method(:prune_doomed_possibilities?) { prune }
+          # Declaration order, except that requirements on `w` come first (see
+          # #with_warm_up).
+          def index.sort_dependencies(dependencies, _activated, _conflicts)
+            dependencies.each_with_index.sort_by { |d, i| [d.name == 'w' ? 0 : 1, i] }.map(&:first)
+          end
+          index
+        end
+
+        def resolve_with(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |n, r| Gem::Dependency.new(n, r) }, DependencyGraph.new)
+        end
+
+        # Pruning starts at the first conflict. This prepends a conflict that
+        # is found (and fixed) before anything else is resolved: w (= 1) is
+        # requested, and t (2), tried first, needs w (= 2).
+        def with_warm_up(specs, demands)
+          [specs.merge('t' => { '1' => { 'w' => '= 1' }, '2' => { 'w' => '= 2' } }, 'w' => { '1' => {}, '2' => {} }),
+           [['w', '= 1'], %w[t >=0]] + demands]
+        end
+
+        # a (2.0) needs b (>= 3), whose only version needs a missing package,
+        # so a (2.0) cannot be part of any resolution; a (1.0) is usable, but
+        # conflicts with d on x.
+        let(:doomed_chain) do
+          {
+            'a' => { '1.0' => { 'x' => '= 1' }, '2.0' => { 'b' => '>= 3' } },
+            'b' => { '3.0' => { 'missing' => '>= 1' } },
+            'x' => { '1' => {}, '2' => {} },
+            'd' => { '1' => { 'x' => '= 2' }, '2' => { 'x' => '>= 2' } },
+          }
+        end
+
+        it 'is off unless the provider opts in' do
+          provider = Class.new { include SpecificationProvider }.new
+          expect(provider.prune_doomed_possibilities?).to be false
+
+          index = index_for(doomed_chain, false)
+          expect { resolve_with(index, [%w[a >=0], %w[d >=0]]) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+            expect(error.message).not_to include('not considered')
+            # Without pruning, a (2.0) is tried and its missing dependency is
+            # one of the conflicts.
+            expect(error.conflicts.keys).to contain_exactly('missing', 'x')
+          end
+        end
+
+        it 'resolves without trying versions that cannot be part of any resolution' do
+          specs, demands = with_warm_up(doomed_chain.merge('d' => { '1' => { 'x' => '= 1' } }), [%w[a >=0], %w[d >=0]])
+          iterations = [true, false].map do |prune|
+            ui = TestUI.new
+            def ui.progress_rate
+              0.0
+            end
+
+            def ui.iterations
+              @iterations ||= 0
+            end
+
+            def ui.indicate_progress
+              @iterations = iterations + 1
+            end
+            resolved = described_class.new(index_for(specs, prune), ui).
+                       resolve(demands.map { |n, r| Gem::Dependency.new(n, r) }, DependencyGraph.new)
+            expect(resolved.map(&:payload).map(&:to_s)).
+              to contain_exactly('a (1.0)', 'x (1)', 'd (1)', 't (1)', 'w (1)')
+            ui.iterations
+          end
+
+          # Without pruning, a (2.0), b (3.0) and the missing package are tried
+          # first.
+          expect(iterations.first).to be < iterations.last
+        end
+
+        it 'explains a pruned chain of doomed versions in the conflict' do
+          specs, demands = with_warm_up(doomed_chain, [%w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            # a (2.0) is never tried, so its missing dependency is no conflict.
+            expect(error.conflicts.keys).to include('x')
+            expect(error.conflicts.keys).not_to include('missing')
+            reasons = error.pruned_possibilities.fetch('a')
+            expect(reasons.map { |r| r.possibility.to_s }).to eq(['a (2.0)'])
+            reason = reasons.first
+            expect(reason.kind).to eq(:candidates_doomed)
+            expect(reason.dependency.to_s).to eq('b (>= 3)')
+            expect(reason.candidate_reasons.map { |r| [r.possibility.to_s, r.dependency.to_s, r.kind] }).
+              to eq([['b (3.0)', 'missing (>= 1)', :missing]])
+
+            section = <<-EOS.strip
+These versions were not considered, because they cannot be part of any resolution:
+- `a (2.0)` depends on `b (>= 3)`, and every version that could satisfy it cannot be used either:
+    - `b (3.0)` depends on `missing (>= 1)`, which no available version satisfies
+            EOS
+            expect(error.message).to end_with("\n\n" + section)
+            expect(error.message_with_trees).to end_with("\n\n" + section)
+          end
+        end
+
+        let(:relevant_section) do
+          <<-EOS.strip
+These versions were not considered, because they cannot be part of any resolution:
+- `a (2.0)` depends on `b (>= 3)`, and every version that could satisfy it cannot be used either:
+    - `b (3.0)` depends on `missing (>= 1)`, which no available version satisfies
+          EOS
+        end
+
+        it 'does not list other pruned versions when relevant ones explain an unaffected conflict' do
+          # u (2) depends on a missing package and is pruned, but fails on a
+          # name (gone) that has nothing to do with the conflict on x.
+          specs, demands = with_warm_up(doomed_chain.merge('u' => { '1' => {}, '2' => { 'gone' => '>= 1' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities.keys).to eq(['a'])
+            # Still available structurally.
+            other = error.other_pruned_possibilities.each_with_object({}) do |(name, reasons), h|
+              h[name] = reasons.map { |r| [r.possibility.to_s, r.kind] }
+            end
+            expect(other).to eq('u' => [['u (2)', :missing]])
+            expect(error.other_pruned_possibilities_affect_explanation?).to be false
+            expect(error.message).to end_with("\n\n" + relevant_section)
+            expect(error.message_with_trees).to end_with("\n\n" + relevant_section)
+            expect(error.message).not_to include('Other versions')
+          end
+        end
+
+        it 'lists other pruned versions that fail on a name the conflict reports' do
+          # u (2) needs x (>= 3), which no version satisfies; x is the name the
+          # conflict is about, so trying u (2) would have led into it.
+          specs, demands = with_warm_up(doomed_chain.merge('u' => { '1' => {}, '2' => { 'x' => '>= 3' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities.keys).to eq(['a'])
+            expect(error.other_pruned_possibilities_affect_explanation?).to be true
+            sections = relevant_section + "\n" + <<-EOS.chomp
+
+Other versions that were not considered, because they cannot be part of any resolution:
+- `u (2)` depends on `x (>= 3)`, which no available version satisfies
+            EOS
+            expect(error.message).to end_with("\n\n" + sections)
+            expect(error.message_with_trees).to end_with("\n\n" + sections)
+          end
+        end
+
+        it 'lists other pruned versions when no relevant ones are listed' do
+          specs, demands = with_warm_up(doomed_chain.merge('a' => { '1.0' => { 'x' => '= 1' } },
+                                                           'u' => { '1' => {}, '2' => { 'gone' => '>= 1' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+            expect(error.message).to end_with(<<-EOS.strip)
+
+
+Other versions that were not considered, because they cannot be part of any resolution:
+- `u (2)` depends on `gone (>= 1)`, which no available version satisfies
+            EOS
+          end
+        end
+
+        it 'caps the number of other pruned versions it lists' do
+          specs = doomed_chain.merge('a' => { '1.0' => { 'x' => '= 1' } })
+          others = (1..7).map { |i| "u#{i}" }
+          others.each { |u| specs[u] = { '1' => {}, '2' => { 'gone' => '>= 1' } } }
+          specs, demands = with_warm_up(specs, others.map { |u| [u, '>= 0'] } + [%w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.other_pruned_possibilities.keys).to match_array(others)
+            other_section = error.message.split("\n\nOther versions that were not considered").last
+            expect(other_section.lines.grep(/\A- `u\d \(2\)`/).size).to eq(5)
+            expect(other_section).to end_with("\n- (and 2 more)")
+          end
+        end
+
+        it 'explains versions excluded by a requirement every resolution must satisfy' do
+          # f, which is requested and has one version, needs s (= 1), so
+          # a (2), which needs s (= 2), cannot be part of any resolution.
+          specs = {
+            'f' => { '1' => { 's' => '= 1' } },
+            's' => { '1' => {}, '2' => {} },
+            'a' => { '1' => { 's' => '= 1', 't' => '= 1' }, '2' => { 's' => '= 2' } },
+            't' => { '1' => {}, '2' => {} },
+            'g' => { '1' => { 't' => '= 2' }, '2' => { 't' => '>= 2' } },
+          }
+          specs, demands = with_warm_up(specs, [%w[f >=0], %w[a >=0], %w[g >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            reason = error.pruned_possibilities.fetch('a').first
+            expect([reason.possibility.to_s, reason.kind]).to eq(['a (2)', :incompatible])
+            expect(reason.excluded_by.map { |r, source| [r.to_s, source] }).
+              to eq([['s (= 1)', 'every version of `f`']])
+            expect(error.message).to end_with(
+              '- `a (2)` depends on `s (= 2)`, but every version that satisfies it conflicts with ' \
+              '`s (= 1)` (required by every version of `f`)'
+            )
+          end
+        end
+
+        it 'explains pruned versions in a circular dependency error' do
+          # p4 (3), the newest, depends on the missing p3, so it is skipped;
+          # p4 (2) -> p2 (1) -> p4 is circular, which is the reported error.
+          specs = {
+            'p2' => { '1' => { 'p4' => '>= 2' } },
+            'p4' => { '2' => { 'p2' => '!= 2' }, '3' => { 'p3' => '= 1' } },
+          }
+          specs, demands = with_warm_up(specs, [%w[p4 >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(CircularDependencyError) do |error|
+            pruned = error.pruned_possibilities.each_with_object({}) do |(name, reasons), h|
+              h[name] = reasons.map { |r| [r.possibility.to_s, r.kind] }
+            end
+            expect(pruned).to eq('p4' => [['p4 (3)', :missing]])
+            expect(error.message).to eq(<<-EOS.strip)
+There is a circular dependency between p4 and p2
+
+These versions were not considered, because they cannot be part of any resolution:
+- `p4 (3)` depends on `p3 (= 1)`, which no available version satisfies
+            EOS
+          end
+        end
+
+        it 'does not ask providers that do not define the method' do
+          index = index_for(doomed_chain, true)
+          class << index
+            undef_method :prune_doomed_possibilities?
+          end
+          provider = Object.new
+          index_methods = [
+            :search_for, :dependencies_for, :requirement_satisfied_by?, :name_for,
+            :name_for_explicit_dependency_source, :name_for_locking_dependency_source,
+            :sort_dependencies, :allow_missing?, :dependencies_equal?,
+          ]
+          index_methods.each { |m| provider.define_singleton_method(m) { |*a| index.public_send(m, *a) } }
+          expect(provider).not_to respond_to(:prune_doomed_possibilities?)
+          expect { resolve_with(provider, [%w[a >=0], %w[d >=0]]) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+          end
         end
       end
 

@@ -108,5 +108,50 @@ module Molinillo
     def allow_missing?(dependency)
       false
     end
+
+    # Whether the resolver may skip *doomed* possibilities instead of trying
+    # them: possibilities that cannot be part of any resolution, because one
+    # of their dependencies cannot be satisfied (it has no possibilities, or
+    # each of them is itself doomed or excluded by a requirement every
+    # resolution must satisfy). This avoids re-deriving the same failure every
+    # time the search backtracks past such a possibility. Pruning starts at
+    # the first conflict, and only checks possibilities that are about to be
+    # tried, so resolutions that never backtrack cost nothing extra.
+    # When resolution fails, the error lists the pruned possibilities that are
+    # relevant to the explanation and why they were pruned
+    # ({VersionConflict#pruned_possibilities}). The other pruned possibilities
+    # ({VersionConflict#other_pruned_possibilities}, always populated) are
+    # also listed, up to a limit, when no relevant one is, or when one of them
+    # fails on a name the error reports a conflict for (so pruning may have
+    # changed the explanation).
+    #
+    # Pruning never changes whether a resolution is found (a pruned possibility
+    # is in no resolution), but the resolver may then find a different valid
+    # resolution, and a failure may be explained by a different conflict (or
+    # be a {CircularDependencyError} instead of a {VersionConflict}, or vice
+    # versa), because the search takes a different path.
+    #
+    # Pruning only calls {#search_for}, {#dependencies_for}, {#name_for} and
+    # {#allow_missing?}, and relies on these contracts:
+    #
+    # 1. {#search_for} returns every possibility that could satisfy the
+    #    dependency in any context: if {#requirement_satisfied_by?} would
+    #    accept a possibility for a requirement, that possibility is `==` to
+    #    one returned by `search_for(requirement)`.
+    # 2. {#dependencies_for} does not depend on the resolution state (with
+    #    pruning, its result for a specification object is reused for the rest
+    #    of the resolution).
+    # 3. Requirements that are `==` have the same {#name_for}, and the same
+    #    {#search_for} results.
+    # 4. Possibilities that are `==` are the same object or `eql?` to each
+    #    other (providers usually return the same objects from every search).
+    #
+    # Possibilities for locked names are never pruned.
+    #
+    # @return [Boolean] whether doomed possibilities may be pruned. Defaults
+    #   to false.
+    def prune_doomed_possibilities?
+      false
+    end
   end
 end

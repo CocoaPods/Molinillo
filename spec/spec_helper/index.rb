@@ -59,6 +59,12 @@ module Molinillo
       dependency.dependencies
     end
 
+    # Opt in to pruning doomed possibilities with MOLINILLO_PRUNE_DOOMED=1, so
+    # the whole suite can be run in both modes.
+    def prune_doomed_possibilities?
+      ENV['MOLINILLO_PRUNE_DOOMED'] == '1'
+    end
+
     def sort_dependencies(dependencies, activated, conflicts)
       dependencies.sort_by do |d|
         [

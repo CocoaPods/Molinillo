@@ -68,6 +68,16 @@ module Molinillo
         end
       end
 
+      # (see Molinillo::SpecificationProvider#prune_doomed_possibilities?)
+      # Providers that do not include {Molinillo::SpecificationProvider} and do
+      # not define the method do not prune.
+      def prune_doomed_possibilities?
+        return false unless specification_provider.respond_to?(:prune_doomed_possibilities?)
+        with_no_such_dependency_error_handling do
+          specification_provider.prune_doomed_possibilities?
+        end
+      end
+
       private
 
       # Ensures any raised {NoSuchDependencyError} has its
