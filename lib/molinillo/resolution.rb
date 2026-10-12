@@ -257,6 +257,10 @@ module Molinillo
           unwind_for_conflict
         end
       rescue CircularDependencyError => underlying_error
+        # Once every state has been unwound, #raise_error_unless_state re-raises
+        # the circular dependency error recorded on a conflict as the final
+        # result; it must not be treated as a new conflict.
+        raise unless state
         create_conflict(underlying_error)
         unwind_for_conflict
       end

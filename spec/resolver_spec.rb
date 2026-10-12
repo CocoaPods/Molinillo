@@ -336,6 +336,28 @@ Molinillo could not find compatible versions for possibility named "json":
           to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c')
       end
 
+      it 'raises the recorded circular dependency error once every alternative has failed' do
+        # p4 (2) -> p2 (1) -> p4 is circular, and p4 (1) depends on p3, which
+        # does not exist. The CircularDependencyError hit first is recorded as
+        # the conflict's underlying error and must be raised once the stack is
+        # exhausted, rather than re-entering conflict handling with no state.
+        # p3 is absent from the index; Hash.new([]) mirrors fixture-loaded indices.
+        specs = Hash.new([]).merge(
+          'p2' => [
+            TestSpecification.new('name' => 'p2', 'version' => '1', 'dependencies' => { 'p4' => '>= 2' }),
+          ],
+          'p4' => [
+            TestSpecification.new('name' => 'p4', 'version' => '1', 'dependencies' => { 'p3' => '= 1' }),
+            TestSpecification.new('name' => 'p4', 'version' => '2', 'dependencies' => { 'p2' => '!= 2' }),
+          ]
+        )
+        index = TestIndex.new(specs)
+        resolver = described_class.new(index, TestUI.new)
+
+        expect { resolver.resolve([Gem::Dependency.new('p4', '>= 0')], DependencyGraph.new) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between p4 and p2')
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do

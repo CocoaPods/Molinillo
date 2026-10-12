@@ -59,6 +59,11 @@
   undoing anything. Previously it undid the entire log before raising.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Raise the recorded `CircularDependencyError` once every alternative has been
+  exhausted, instead of crashing with a `NoMethodError` when it is re-raised
+  inside the resolver's circular-dependency conflict handling.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 
