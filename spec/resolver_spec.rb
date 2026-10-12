@@ -445,6 +445,97 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(ui.iterations).to be < 500
       end
 
+      it 'unwinds to the package that closes a cycle when an older version avoids it' do
+        # x (2) -> a -> b -> x is circular, but x (1) has no dependencies, so
+        # { x (1), a (1), b (1) } is a valid resolution. The cycle is detected
+        # while activating b; b's own requirement was introduced by the
+        # user-requested a, so only the requirements along the cycle (here
+        # x (2)'s dependency on a) lead back to x.
+        index = TestIndex.new(
+          'x' => [
+            TestSpecification.new('name' => 'x', 'version' => '1'),
+            TestSpecification.new('name' => 'x', 'version' => '2', 'dependencies' => { 'a' => '>= 1' }),
+          ],
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1', 'dependencies' => { 'b' => '>= 1' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1', 'dependencies' => { 'x' => '>= 1' }),
+          ]
+        )
+        # Keep declaration order: x is activated (at 2) before a and b.
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+        demands = [Gem::Dependency.new('x'), Gem::Dependency.new('a')]
+
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['x (1)', 'a (1)', 'b (1)'])
+      end
+
+      it 'still retries an older version of the package whose activation closes a cycle' do
+        # p4 -> p5 -> p2 (2) -> p4 is circular, and the cycle is detected while
+        # activating p2 (2); p2 (1) has no dependencies. The requirements along
+        # the cycle are for other names and must not stop p2 (1) from being
+        # considered as an alternative for p2.
+        index = TestIndex.new(
+          'p2' => [
+            TestSpecification.new('name' => 'p2', 'version' => '1'),
+            TestSpecification.new('name' => 'p2', 'version' => '2', 'dependencies' => { 'p4' => '<= 1' }),
+          ],
+          'p4' => [
+            TestSpecification.new('name' => 'p4', 'version' => '4', 'dependencies' => { 'p5' => '>= 4' }),
+          ],
+          'p5' => [
+            TestSpecification.new('name' => 'p5', 'version' => '4', 'dependencies' => { 'p2' => '< 4' }),
+          ]
+        )
+
+        resolved = described_class.new(index, TestUI.new).resolve([Gem::Dependency.new('p4')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['p2 (1)', 'p4 (4)', 'p5 (4)'])
+      end
+
+      it 'unwinds a long cycle without cubic requirement comparisons' do
+        # p1 (2) -> p2 -> ... -> p64 -> p1 is circular; p1 (1) has no
+        # dependencies. Every requirement along the cycle is binding, so there
+        # are ~n requirement trees of length up to n. Looking up their states
+        # by scanning the stack, and deduplicating unwind details by value
+        # (hashing their requirement trees), used to make this O(n^3).
+        operations = 0
+        counting_dependency = Class.new(Gem::Dependency) do
+          define_method(:==) do |other|
+            operations += 1
+            super(other)
+          end
+
+          define_method(:hash) do
+            operations += 1
+            super()
+          end
+        end
+        n = 64
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| counting_dependency.new(d.name, d.requirement) }
+          end
+        end
+        specs = Hash.new([])
+        specs['p1'] = [spec.call('p1', '1'), spec.call('p1', '2', 'p2' => '>= 1')]
+        (2..n).each { |i| specs["p#{i}"] = [spec.call("p#{i}", '1', "p#{i == n ? 1 : i + 1}" => '>= 1')] }
+        index = TestIndex.new(specs)
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        resolved = described_class.new(index, TestUI.new).resolve([counting_dependency.new('p1')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to eq(['p1 (1)'])
+        # O(n^3) needs ~240_000 operations here; O(n^2) needs ~13_000.
+        expect(operations).to be < 10 * n * n
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do

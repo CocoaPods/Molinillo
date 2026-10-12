@@ -366,6 +366,19 @@ module Molinillo
       def unwind_options_for_requirements(binding_requirements)
         unwind_details = []
 
+        # The ancestors of the binding requirements are shared between their
+        # requirement trees (for a circular conflict, every requirement along
+        # the cycle is binding), so look each one's state and stack index up
+        # once instead of scanning the stack for every tree.
+        states_by_requirement = {}.compare_by_identity
+        state_for = lambda do |requirement|
+          states_by_requirement.fetch(requirement) do
+            states_by_requirement[requirement] = find_state_for(requirement)
+          end
+        end
+        state_indices = {}.compare_by_identity
+        states.each_with_index { |s, i| state_indices[s] = i }
+
         trees = []
         binding_requirements.reverse_each do |r|
           partial_tree = [r]
@@ -374,10 +387,10 @@ module Molinillo
 
           # If this requirement has alternative possibilities, check if any would
           # satisfy the other requirements that created this conflict
-          requirement_state = find_state_for(r)
+          requirement_state = state_for.call(r)
           if conflict_fixing_possibilities?(requirement_state, binding_requirements)
             unwind_details << UnwindDetails.new(
-              states.index(requirement_state),
+              state_indices[requirement_state],
               r,
               partial_tree,
               binding_requirements,
@@ -391,10 +404,10 @@ module Molinillo
           parent_r = parent_of(r)
           next if parent_r.nil?
           partial_tree.unshift(parent_r)
-          requirement_state = find_state_for(parent_r)
+          requirement_state = state_for.call(parent_r)
           if requirement_state.possibilities.any? { |set| !set.dependencies.include?(r) }
             unwind_details << UnwindDetails.new(
-              states.index(requirement_state),
+              state_indices[requirement_state],
               parent_r,
               partial_tree,
               binding_requirements,
@@ -408,10 +421,10 @@ module Molinillo
           grandparent_r = parent_of(parent_r)
           until grandparent_r.nil?
             partial_tree.unshift(grandparent_r)
-            requirement_state = find_state_for(grandparent_r)
+            requirement_state = state_for.call(grandparent_r)
             if requirement_state.possibilities.any? { |set| !set.dependencies.include?(parent_r) }
               unwind_details << UnwindDetails.new(
-                states.index(requirement_state),
+                state_indices[requirement_state],
                 grandparent_r,
                 partial_tree,
                 binding_requirements,
@@ -477,13 +490,17 @@ module Molinillo
       # @param [Object] possibility a single possibility
       # @param [Array] requirements an array of requirements
       # @return [Boolean] whether the possibility satisfies all of the
-      #    given requirements
+      #    given requirements for its name. Requirements for other names (which
+      #    the binding requirements of a circular dependency conflict include,
+      #    see {#requirements_along_cycle}) do not constrain it.
       def possibility_satisfies_requirements?(possibility, requirements)
         name = name_for(possibility)
 
         activated.tag(:swap)
         activated.set_payload(name, possibility) if activated.vertex_named(name)
-        satisfied = requirements.all? { |r| requirement_satisfied_by?(r, activated, possibility) }
+        satisfied = requirements.all? do |r|
+          name_for(r) != name || requirement_satisfied_by?(r, activated, possibility)
+        end
         activated.rewind_to(:swap)
 
         satisfied
@@ -497,8 +514,13 @@ module Molinillo
         unwinds_to_state = unused_unwind_options.select { |uw| uw.state_index == unwind_details.state_index }
         unwinds_to_state << unwind_details
 
-        primary_unwinds = unwinds_to_state.select(&:unwinding_to_primary_requirement?).uniq
-        parent_unwinds = unwinds_to_state.uniq - primary_unwinds
+        # Deduplicate by identity: the same UnwindDetails object can be listed
+        # more than once, and hashing these structs by value (including their
+        # requirement trees) is quadratic in the length of the trees. Repeated
+        # entries only repeat elements of `allowed_possibility_sets` and
+        # `requirements_to_avoid`, so the result is the same.
+        primary_unwinds = unwinds_to_state.select(&:unwinding_to_primary_requirement?).uniq(&:object_id)
+        parent_unwinds = unwinds_to_state.reject(&:unwinding_to_primary_requirement?).uniq(&:object_id)
 
         allowed_possibility_sets = primary_unwinds.flat_map do |unwind|
           states[unwind.state_index].possibilities.select do |possibility_set|
@@ -530,8 +552,12 @@ module Molinillo
         # because it's circular).
         # We need to make sure we have that requirement in the conflict's list,
         # otherwise we won't be able to unwind properly, so we just return all
-        # the requirements for the conflict.
-        return possible_binding_requirements if conflict.underlying_error
+        # the requirements for the conflict, together with the requirements
+        # along the cycle: changing any state that introduced one of them could
+        # break the cycle (e.g. an older version of a package that closes it).
+        if conflict.underlying_error
+          return (possible_binding_requirements + requirements_along_cycle(conflict.underlying_error)).uniq
+        end
 
         possibilities = search_for(conflict.requirement)
 
@@ -570,6 +596,22 @@ module Molinillo
       def binding_requirement_in_set?(requirement, possible_binding_requirements, possibilities)
         possibilities.any? do |poss|
           possibility_satisfies_requirements?(poss, possible_binding_requirements - [requirement])
+        end
+      end
+
+      # @param [CircularDependencyError] error
+      # @return [Array<Object>] the requirements on the edges of the activated
+      #   graph that form the cycle reported by `error`. The error's
+      #   dependencies are ordered along the cycle's path (from the destination
+      #   of the edge that could not be added to its origin), and the edges are
+      #   still in the graph because this is called before unwinding.
+      def requirements_along_cycle(error)
+        return [] unless error.respond_to?(:dependencies)
+        names = error.dependencies.map { |dependency| name_for(dependency) }
+        names.each_cons(2).flat_map do |from, to|
+          vertex = activated.vertex_named(from)
+          next [] unless vertex
+          vertex.outgoing_edges.select { |edge| edge.destination.name == to }.map(&:requirement)
         end
       end
 

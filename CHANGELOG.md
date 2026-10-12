@@ -75,6 +75,11 @@
   redundant requirement, independent of the provider's `eql?` semantics.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Consider the requirements along a circular dependency when unwinding from
+  it, so that a resolution using an older version of a package that closes the
+  cycle is found instead of raising a `CircularDependencyError`.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 
