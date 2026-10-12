@@ -41,6 +41,39 @@ describe Molinillo::DependencyGraph::Log do
     expect(graph.log.each.to_a).to eq(graph.log.reverse_each.to_a.reverse)
   end
 
+  describe 'undoing delete_edge' do
+    def edges(graph)
+      graph.flat_map { |v| v.outgoing_edges.map { |e| [e.origin.name, e.destination.name, e.requirement] } }
+    end
+
+    let(:graph) do
+      Molinillo::DependencyGraph.new.tap do |g|
+        g.add_vertex('a', 'a', true)
+        g.add_vertex('b', 'b', true)
+      end
+    end
+
+    it 'deletes and restores exactly one of several equal edges' do
+      2.times { graph.add_edge(graph.vertex_named('a'), graph.vertex_named('b'), 'req') }
+      graph.tag(:before_delete)
+      graph.delete_edge(graph.vertex_named('a').outgoing_edges.first)
+      expect(edges(graph)).to eq([%w(a b req)])
+      expect(graph.vertex_named('b').incoming_edges.size).to eq(1)
+      graph.rewind_to(:before_delete)
+      expect(edges(graph)).to eq([%w(a b req), %w(a b req)])
+      expect(graph.vertex_named('b').incoming_edges.size).to eq(2)
+    end
+
+    it 'does not create an edge that was never there' do
+      graph.tag(:before_delete)
+      edge = Molinillo::DependencyGraph::Edge.new(graph.vertex_named('a'), graph.vertex_named('b'), 'req')
+      graph.delete_edge(edge)
+      graph.rewind_to(:before_delete)
+      expect(edges(graph)).to be_empty
+      expect(graph.vertex_named('b').incoming_edges).to be_empty
+    end
+  end
+
   it_behaves_like 'replay', []
   it_behaves_like 'replay', [
     proc { |g| g.add_child_vertex('Foo', 1, [nil], 4) },

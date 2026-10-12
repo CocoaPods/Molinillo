@@ -40,6 +40,12 @@
   a rewind.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* `DependencyGraph#delete_edge` removes a single edge, and rewinding past it
+  restores exactly the edge that was removed. Previously it removed every equal
+  edge but undoing it restored only one, and undoing the deletion of an edge
+  that did not exist added that edge to the graph.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

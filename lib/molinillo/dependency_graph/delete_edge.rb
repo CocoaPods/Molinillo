@@ -16,15 +16,15 @@ module Molinillo
       # (see Action#up)
       def up(graph)
         edge = make_edge(graph)
-        edge.origin.outgoing_edges.delete(edge)
-        edge.destination.incoming_edges.delete(edge)
+        @removed_outgoing = delete_first(edge.origin.outgoing_edges, edge)
+        @removed_incoming = delete_first(edge.destination.incoming_edges, edge)
       end
 
       # (see Action#down)
       def down(graph)
         edge = make_edge(graph)
-        edge.origin.outgoing_edges << edge
-        edge.destination.incoming_edges << edge
+        edge.origin.outgoing_edges << @removed_outgoing if @removed_outgoing
+        edge.destination.incoming_edges << @removed_incoming if @removed_incoming
         edge
       end
 
@@ -57,6 +57,19 @@ module Molinillo
         @origin_name = origin_name
         @destination_name = destination_name
         @requirement = requirement
+      end
+
+      private
+
+      # Removes the first edge in `edges` matching `edge`, so that undoing the
+      # action restores exactly what was removed (one of several equal edges,
+      # or nothing at all if there was no such edge).
+      # @return [Edge, nil] the removed edge
+      def delete_first(edges, edge)
+        index = edges.index do |e|
+          e.origin.equal?(edge.origin) && e.destination.equal?(edge.destination) && e.requirement == edge.requirement
+        end
+        edges.delete_at(index) if index
       end
     end
   end
