@@ -10,7 +10,12 @@
 
 ##### Bug Fixes
 
-* None.
+* Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming
+  there is no path) for circular dependencies whose vertices were added to the
+  graph in an order other than topological order, which depended on the order
+  dependencies were requested in. Circular dependency errors now always report
+  the shortest path.  
+  [Samuel Giddins](https://github.com/segiddins)
 
 
 ## 0.8.0 (2021-08-09)

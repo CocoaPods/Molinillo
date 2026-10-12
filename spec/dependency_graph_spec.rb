@@ -30,6 +30,35 @@ module Molinillo
       end
     end
 
+    describe 'adding an edge that creates a cycle' do
+      def graph_with(*names)
+        described_class.new.tap do |graph|
+          names.each do |name|
+            payload = Resolver::Resolution::PossibilitySet.new([], [name])
+            graph.add_vertex(name, payload, false)
+          end
+        end
+      end
+
+      def add_edges(graph, *pairs)
+        pairs.each { |o, d| graph.add_edge(graph.vertex_named(o), graph.vertex_named(d), "#{o}->#{d}") }
+      end
+
+      it 'raises a circular dependency error when vertices were added out of order' do
+        graph = graph_with('mid', 'top', 'leaf')
+        add_edges(graph, %w(top mid), %w(mid leaf))
+        expect { add_edges(graph, %w(leaf top)) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between top and mid and leaf')
+      end
+
+      it 'reports the shortest path between the circularly-dependent vertices' do
+        graph = graph_with('b', 'f', 'a', 'd', 'e')
+        add_edges(graph, %w(d e), %w(e f), %w(a b), %w(a d), %w(b f))
+        expect { add_edges(graph, %w(f a)) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and f')
+      end
+    end
+
     describe 'detaching a vertex' do
       before do
         @graph = described_class.new

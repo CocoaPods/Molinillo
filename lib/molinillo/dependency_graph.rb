@@ -226,29 +226,27 @@ module Molinillo
     # @param [Vertex] to
     # @return [Array<Vertex>] the shortest path from `from` to `to`
     def path(from, to)
-      distances = Hash.new(vertices.size + 1)
-      distances[from.name] = 0
-      predecessors = {}
-      each do |vertex|
+      # Breadth-first search from `from`, so the first time a vertex is reached
+      # is along a shortest path, independent of vertex insertion order.
+      predecessors = { from.name => nil }
+      queue = [from]
+      until queue.empty? || predecessors.key?(to.name)
+        vertex = queue.shift
         vertex.successors.each do |successor|
-          if distances[successor.name] > distances[vertex.name] + 1
-            distances[successor.name] = distances[vertex.name] + 1
-            predecessors[successor] = vertex
-          end
+          next if predecessors.key?(successor.name)
+          predecessors[successor.name] = vertex
+          queue << successor
         end
       end
 
-      path = [to]
-      while before = predecessors[to]
-        path << before
-        to = before
-        break if to == from
-      end
-
-      unless path.last.equal?(from)
+      unless predecessors.key?(to.name)
         raise ArgumentError, "There is no path from #{from.name} to #{to.name}"
       end
 
+      path = [to]
+      while before = predecessors[path.last.name]
+        path << before
+      end
       path.reverse
     end
   end

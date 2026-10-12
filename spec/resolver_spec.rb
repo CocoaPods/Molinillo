@@ -312,6 +312,30 @@ Molinillo could not find compatible versions for possibility named "json":
           to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c and d')
       end
 
+      it 'raises a circular dependency error regardless of the order dependencies are requested' do
+        index = TestIndex.new(
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'b' => '= 1.0.0' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1.0.0', 'dependencies' => { 'c' => '= 1.0.0' }),
+          ],
+          'c' => [
+            TestSpecification.new('name' => 'c', 'version' => '1.0.0', 'dependencies' => { 'a' => '= 1.0.0' }),
+          ]
+        )
+
+        demands = [
+          Gem::Dependency.new('b'),
+          Gem::Dependency.new('a'),
+        ]
+
+        resolver = described_class.new(index, TestUI.new)
+
+        expect { resolver.resolve(demands, DependencyGraph.new) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c')
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do
