@@ -31,6 +31,11 @@
   the order cannot change, and final context-sensitive verification is retained.
   [Samuel Giddins](https://github.com/segiddins)
 
+* Index pure unwind search domains by identity and memoize value-equality
+  membership fallback answers, avoiding repeated specification/version scans
+  while preserving providers whose specifications define only `==`.
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming
@@ -125,6 +130,15 @@
   requirement exists). Possibilities that do not satisfy a requirement yet are
   now tried last instead of being discarded, and whether every activated spec
   satisfies all of its requirements is checked once they are all known.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+* Keep search-domain-valid unwind candidates while unprocessed requirements
+  may change the provider's context, instead of permanently rejecting a
+  prerelease before a later dependency allows it. Locked requirements remain
+  strict, and every activated specification is still verified once all
+  requirements are known. This fixes requirement-order dependence when a
+  release candidate fails (for example, because of a circular dependency)
+  before the prerelease-enabling dependency is processed.
   [Samuel Giddins](https://github.com/segiddins)
 
 

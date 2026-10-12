@@ -821,6 +821,40 @@ Molinillo could not find compatible versions for possibility named "json":
           expect(resolve(index, [['a', '<= 2.0.a'], ['b', '>= 0']])).to match_array(['a (2.0.a)', 'b (2.0.a)'])
         end
 
+        it 'retries a prerelease after a circular release even before its enabling requirement is seen' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => { 'd' => '>= 1.1.a' } })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect(resolve(index, order.map { |name| [name, '>= 0'] })).to match_array(['a (1.0)', 'd (3.0.b)'])
+          end
+        end
+
+        it 'does not accept a speculative prerelease unless the completed graph enables it' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => {} })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect { resolve(index, order.map { |name| [name, '>= 0'] }) }.to raise_error(ResolverError)
+          end
+        end
+
+        it 'does not relax a hard version constraint when retrying an incomplete context' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => { 'd' => '>= 3.0.b' } })
+
+          expect { resolve(index, [['d', '< 3.0.b'], ['a', '>= 0']]) }.to raise_error(ResolverError)
+        end
+
+        it 'preserves the separate older-enabling-parent limitation in every order' do
+          index = index_with('a' => { '1.0' => { 'd' => '>= 3.0.b' }, '3.0' => {} },
+                             'd' => { '3.0.b' => {} })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect { resolve(index, order.map { |name| [name, '>= 0'] }) }.to raise_error(ResolverError)
+          end
+        end
+
         it 'does not partition a single possibility set merely to rediscover the same order' do
           index = index_with('a' => { '1.0' => {}, '2.0' => {} })
           dependency = Gem::Dependency.new('a', '>= 0')

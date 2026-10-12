@@ -162,6 +162,7 @@ module Molinillo
         @parents_of = Hash.new { |h, k| h[k] = [] }.compare_by_identity
         @search_results = {}.compare_by_identity
         @dependency_names = {}.compare_by_identity
+        @unwind_search_domains = {}.compare_by_identity
       end
 
       # Resolves the {#original_requested} dependencies into a full dependency
@@ -514,7 +515,7 @@ module Molinillo
 
         state.possibilities.any? do |possibility_set|
           possibility_set.possibilities.any? do |poss|
-            possibility_satisfies_requirements?(poss, binding_requirements)
+            possibility_satisfies_unwind_requirements?(poss, binding_requirements)
           end
         end
       end
@@ -546,9 +547,62 @@ module Molinillo
         state.possibilities.reject! do |possibility_set|
           possibility_set.possibilities.none? do |poss|
             unwind_requirement_sets.any? do |requirements|
-              possibility_satisfies_requirements?(poss, requirements)
+              possibility_satisfies_unwind_requirements?(poss, requirements)
             end
           end
+        end
+      end
+
+      # Whether a candidate should remain available for an unwind. A queued
+      # requirement can introduce dependencies that change the provider's
+      # context (e.g. enabling a prerelease), so a contextual rejection is not
+      # final until the queue is exhausted. Keep only candidates admitted by
+      # every same-name search domain, and never relax a locked requirement.
+      # Final acceptance still uses #unsatisfied_activated_vertex once all
+      # requirements are known. Binding-requirement analysis stays strict.
+      # @param [Object] possibility
+      # @param [Array<Object>] requirements
+      # @return [Boolean]
+      def possibility_satisfies_unwind_requirements?(possibility, requirements)
+        return true if possibility_satisfies_requirements?(possibility, requirements)
+        return false if self.requirements.empty?
+
+        name = name_for(possibility)
+        locked_requirement = locked_requirement_named(name)
+        requirements.all? do |requirement|
+          next true unless name_for(requirement) == name
+          if requirement.equal?(locked_requirement)
+            possibility_satisfies_requirements?(possibility, [requirement])
+          else
+            begin
+              unwind_search_domain_includes?(requirement, possibility)
+            rescue NoSuchDependencyError
+              # A missing domain cannot contain this candidate. A speculative
+              # search must not replace the current conflict with a new error.
+              false
+            end
+          end
+        end
+      end
+
+      # A pure search domain may be consulted repeatedly while filtering the
+      # same candidate. Index positive matches by identity, and memoize the
+      # original Array#include? answer for non-identical candidates. Never use
+      # spec eql?/hash as a replacement for ==: providers may only define ==.
+      # Failed searches are not cached, preserving the caller's error handling.
+      # @param [Object] requirement
+      # @param [Object] possibility
+      # @return [Boolean]
+      def unwind_search_domain_includes?(requirement, possibility)
+        domain = @unwind_search_domains.fetch(requirement) do
+          candidates = search_for(requirement).dup
+          identities = {}.compare_by_identity
+          candidates.each { |candidate| identities[candidate] = true }
+          @unwind_search_domains[requirement] = [candidates, identities, {}.compare_by_identity]
+        end
+        return true if domain[1].key?(possibility)
+        domain[2].fetch(possibility) do
+          domain[2][possibility] = domain[0].include?(possibility)
         end
       end
 
@@ -619,7 +673,7 @@ module Molinillo
         allowed_possibility_sets = primary_unwinds.flat_map do |unwind|
           states[unwind.state_index].possibilities.select do |possibility_set|
             possibility_set.possibilities.any? do |poss|
-              possibility_satisfies_requirements?(poss, unwind.conflicting_requirements)
+              possibility_satisfies_unwind_requirements?(poss, unwind.conflicting_requirements)
             end
           end
         end
