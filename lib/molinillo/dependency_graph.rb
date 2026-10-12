@@ -147,7 +147,7 @@ module Molinillo
     def add_child_vertex(name, payload, parent_names, requirement)
       root = !parent_names.delete(nil) { true }
       vertex = add_vertex(name, payload, root)
-      vertex.explicit_requirements << requirement if root
+      log.add_explicit_requirement(self, name, requirement) if root
       parent_names.each do |parent_name|
         parent_vertex = vertex_named(parent_name)
         add_edge(parent_vertex, vertex, requirement)

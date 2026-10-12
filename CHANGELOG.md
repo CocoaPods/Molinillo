@@ -26,6 +26,10 @@
   returns a boolean.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Rewinding a `DependencyGraph` now also undoes explicit requirements added by
+  `add_child_vertex` after the tag being rewound to.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

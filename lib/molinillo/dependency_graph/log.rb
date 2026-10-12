@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'add_edge_no_circular'
+require_relative 'add_explicit_requirement'
 require_relative 'add_vertex'
 require_relative 'delete_edge'
 require_relative 'detach_vertex_named'
@@ -55,6 +56,15 @@ module Molinillo
       # @macro action
       def set_payload(graph, name, payload)
         push_action(graph, SetPayload.new(name, payload))
+      end
+
+      # Adds an explicit requirement to the vertex with the given name
+      # @param [DependencyGraph] graph the graph to perform the action on
+      # @param [String] name the name of the vertex
+      # @param [Object] requirement the explicit requirement
+      # @return [Array<Object>] the vertex's explicit requirements
+      def add_explicit_requirement(graph, name, requirement)
+        push_action(graph, AddExplicitRequirement.new(name, requirement))
       end
 
       # Pops the most recent action from the log and undoes the action
