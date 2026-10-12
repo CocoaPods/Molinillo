@@ -17,6 +17,10 @@
   the shortest path.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Fix `DependencyGraph.tsort` raising an `ArgumentError` for any input, since
+  `TSort` passes the node iterator a block rather than a positional argument.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

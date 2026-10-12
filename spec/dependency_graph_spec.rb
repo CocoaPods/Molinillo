@@ -59,6 +59,17 @@ module Molinillo
       end
     end
 
+    describe 'topologically sorting a subset of vertices' do
+      it 'orders each vertex after its successors' do
+        graph = described_class.new
+        a = graph.add_vertex('a', 'a', true)
+        b = graph.add_child_vertex('b', 'b', %w(a), 'b')
+        c = graph.add_child_vertex('c', 'c', %w(b), 'c')
+        expect(described_class.tsort([a, b])).to eq([b, a])
+        expect(described_class.tsort([a, b, c])).to eq([c, b, a])
+      end
+    end
+
     describe 'detaching a vertex' do
       before do
         @graph = described_class.new

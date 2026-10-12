@@ -33,7 +33,7 @@ module Molinillo
     # @return [Array<Vertex>] The sorted vertices.
     def self.tsort(vertices)
       TSort.tsort(
-        lambda { |b| vertices.each(&b) },
+        lambda { |&b| vertices.each(&b) },
         lambda { |v, &b| (v.successors & vertices).each(&b) }
       )
     end
