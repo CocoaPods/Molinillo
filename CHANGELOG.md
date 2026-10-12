@@ -69,6 +69,12 @@
   inside the resolver's circular-dependency conflict handling.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Avoid exponential unwinding when several parents declare requirements that
+  are equal (`==`) to the conflicting one but are distinct objects: such
+  duplicates are now pruned from the binding requirements like any other
+  redundant requirement, independent of the provider's `eql?` semantics.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

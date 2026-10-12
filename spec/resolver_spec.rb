@@ -390,6 +390,61 @@ Molinillo could not find compatible versions for possibility named "json":
         expect(comparisons).to be < 10 * n
       end
 
+      it 'does not unwind exponentially when several parents share an equal requirement' do
+        # a1..a10 each have versions 1..3, where a_i (j) requires `s (= j)` --
+        # the same requirement for every a_i. f, processed last, requires
+        # `s (= 1)`, so every a_i has to drop to version 1.
+        #
+        # Requirements are compared with `==` by the resolver, but `eql?` is
+        # up to the provider. Bundler makes Gem::Dependency#eql? value-based
+        # (so Array#uniq already collapses the duplicates); plain RubyGems
+        # does not, and that identity-based `eql?` is what triggers the bug.
+        identity_dependency = Class.new(Gem::Dependency) do
+          def eql?(other)
+            equal?(other)
+          end
+        end
+        n = 10
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| identity_dependency.new(d.name, d.requirement) }
+          end
+        end
+        specs = Hash.new([])
+        (1..n).each do |i|
+          specs["a#{i}"] = %w[1 2 3].map { |v| spec.call("a#{i}", v, 's' => "= #{v}") }
+        end
+        specs['s'] = %w[1 2 3].map { |v| spec.call('s', v) }
+        specs['f'] = [spec.call('f', '1', 's' => '= 1')]
+        index = TestIndex.new(specs)
+        # Keep declaration order so that f's requirement is only seen after
+        # every a_i has been activated at its newest version.
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        ui = TestUI.new
+        def ui.progress_rate
+          0.0 # report progress on every iteration
+        end
+
+        def ui.iterations
+          @iterations ||= 0
+        end
+
+        def ui.indicate_progress
+          @iterations = iterations + 1
+        end
+
+        demands = (1..n).map { |i| identity_dependency.new("a#{i}") } + [identity_dependency.new('f')]
+        resolved = described_class.new(index, ui).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).
+          to match_array((1..n).map { |i| "a#{i} (1)" } + ['s (1)', 'f (1)'])
+        # Exponential unwinding needs 5202 iterations here; linear needs ~250.
+        expect(ui.iterations).to be < 500
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do

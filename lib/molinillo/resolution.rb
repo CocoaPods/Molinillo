@@ -545,10 +545,15 @@ module Molinillo
         # Loop through the possible binding requirements, removing each one
         # that doesn't bind. Use a `reverse_each` as we want the earliest set of
         # binding requirements, and don't use `reject!` as we wish to refine the
-        # array *on each iteration*.
+        # array *on each iteration*. Only the conflicting requirement object
+        # itself is always kept: other requirements that are merely equal to it
+        # (e.g. the same constraint declared by several parents) are redundant
+        # and must be pruned like any other, otherwise each of them becomes a
+        # candidate unwind and the resolver unwinds to the most recent one,
+        # which cannot fix the conflict on its own.
         binding_requirements = possible_binding_requirements.dup
         possible_binding_requirements.reverse_each do |req|
-          next if req == conflict.requirement
+          next if req.equal?(conflict.requirement)
           unless binding_requirement_in_set?(req, binding_requirements, possibilities)
             binding_requirements -= [req]
           end
