@@ -130,11 +130,12 @@ module Molinillo
     def ==(other)
       return false unless other
       return true if equal?(other)
-      vertices.each do |name, vertex|
+      return false unless vertices.size == other.vertices.size
+      vertices.all? do |name, vertex|
         other_vertex = other.vertex_named(name)
-        return false unless other_vertex
-        return false unless vertex.payload == other_vertex.payload
-        return false unless other_vertex.successors.to_set == vertex.successors.to_set
+        other_vertex &&
+          vertex.payload == other_vertex.payload &&
+          other_vertex.successors.to_set == vertex.successors.to_set
       end
     end
 

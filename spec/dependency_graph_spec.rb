@@ -70,6 +70,23 @@ module Molinillo
       end
     end
 
+    describe 'equality' do
+      def graph_with(*names)
+        described_class.new.tap { |g| names.each { |n| g.add_vertex(n, n, true) } }
+      end
+
+      it 'is not equal to a graph with additional vertices, in either direction' do
+        smaller = graph_with('a')
+        larger = graph_with('a', 'b')
+        expect(smaller == larger).to be(false)
+        expect(larger == smaller).to be(false)
+      end
+
+      it 'returns true for equal graphs' do
+        expect(graph_with('a', 'b') == graph_with('b', 'a')).to be(true)
+      end
+    end
+
     describe 'detaching a vertex' do
       before do
         @graph = described_class.new

@@ -21,6 +21,11 @@
   `TSort` passes the node iterator a block rather than a positional argument.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Make `DependencyGraph#==` symmetric: a graph is no longer considered equal to
+  another graph that has additional vertices, and the comparison always
+  returns a boolean.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 
