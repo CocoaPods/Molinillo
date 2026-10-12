@@ -30,6 +30,16 @@
   `add_child_vertex` after the tag being rewound to.  
   [Samuel Giddins](https://github.com/segiddins)
 
+* Copying a `DependencyGraph` no longer records the copy's reconstruction in
+  a log shared with the original. The copy now starts with its own empty log;
+  previously rewinding the copy to a tag from before the copy emptied the copy
+  or raised, and changes to the copy were spliced into the original's log.  
+  [Samuel Giddins](https://github.com/segiddins)
+
+* `DependencyGraph::Log#each` no longer enumerates actions that were undone by
+  a rewind.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 
 ## 0.8.0 (2021-08-09)
 

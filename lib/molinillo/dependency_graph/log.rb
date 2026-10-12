@@ -72,7 +72,9 @@ module Molinillo
       # @return [Action] the action that was popped off the log
       def pop!(graph)
         return unless action = @current_action
-        unless @current_action = action.previous
+        if @current_action = action.previous
+          @current_action.next = nil
+        else
           @first_action = nil
         end
         action.down(graph)

@@ -73,23 +73,28 @@ module Molinillo
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
     # are properly copied.
+    #
+    # The copy starts with an empty {#log}: it has the same vertices and edges
+    # as `other`, but none of its history, so it cannot be rewound to tags
+    # that were added to `other` before the copy was made. The two graphs share
+    # no vertices, edges or log actions.
     # @param [DependencyGraph] other the graph to copy.
     def initialize_copy(other)
       super
       @vertices = {}
-      @log = other.log.dup
-      traverse = lambda do |new_v, old_v|
-        return if new_v.outgoing_edges.size == old_v.outgoing_edges.size
-        old_v.outgoing_edges.each do |edge|
-          destination = add_vertex(edge.destination.name, edge.destination.payload)
-          add_edge_no_circular(new_v, destination, edge.requirement)
-          traverse.call(destination, edge.destination)
-        end
-      end
+      @log = Log.new
       other.vertices.each do |name, vertex|
-        new_vertex = add_vertex(name, vertex.payload, vertex.root?)
+        new_vertex = Vertex.new(name, vertex.payload)
+        new_vertex.root = vertex.root
         new_vertex.explicit_requirements.replace(vertex.explicit_requirements)
-        traverse.call(new_vertex, vertex)
+        @vertices[name] = new_vertex
+      end
+      other.vertices.each_value do |vertex|
+        vertex.outgoing_edges.each do |edge|
+          new_edge = Edge.new(@vertices[edge.origin.name], @vertices[edge.destination.name], edge.requirement)
+          new_edge.origin.outgoing_edges << new_edge
+          new_edge.destination.incoming_edges << new_edge
+        end
       end
     end
 

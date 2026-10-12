@@ -31,6 +31,16 @@ describe Molinillo::DependencyGraph::Log do
     expect(graph.vertex_named('a').requirements).to eq(%w(first))
   end
 
+  it 'only enumerates the actions that have not been undone' do
+    graph = Molinillo::DependencyGraph.new
+    graph.add_vertex('a', 'a', true)
+    graph.tag(:before)
+    graph.add_vertex('b', 'b', true)
+    graph.rewind_to(:before)
+    expect(graph.log.each.map { |a| a.class.action_name }).to eq([:add_vertex])
+    expect(graph.log.each.to_a).to eq(graph.log.reverse_each.to_a.reverse)
+  end
+
   it_behaves_like 'replay', []
   it_behaves_like 'replay', [
     proc { |g| g.add_child_vertex('Foo', 1, [nil], 4) },

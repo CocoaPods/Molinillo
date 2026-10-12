@@ -87,6 +87,55 @@ module Molinillo
       end
     end
 
+    describe 'copying' do
+      before do
+        @graph = described_class.new
+        @graph.add_vertex('a', 'a', true)
+        @graph.tag(:before_copy)
+        @graph.add_child_vertex('b', 'b', %w(a), 'b')
+        @graph.add_edge(@graph.vertex_named('a'), @graph.vertex_named('b'), 'b')
+      end
+
+      it 'copies vertices, payloads, root flags, explicit requirements and edges' do
+        @graph.vertex_named('a').explicit_requirements << 'explicit'
+        copy = @graph.dup
+        expect(copy).to eq(@graph)
+        expect(copy.vertex_named('a')).not_to equal(@graph.vertex_named('a'))
+        expect(copy.vertex_named('a').root?).to be(true)
+        expect(copy.vertex_named('b').root?).to be(false)
+        expect(copy.vertex_named('a').explicit_requirements).to eq(%w(explicit))
+        expect(copy.vertex_named('a').outgoing_edges.map { |e| [e.destination.name, e.requirement] }).
+          to eq([%w(b b), %w(b b)])
+        expect(copy.vertex_named('b').incoming_edges.map(&:origin)).to all(equal(copy.vertex_named('a')))
+      end
+
+      it 'gives the copy its own, empty log' do
+        copy = @graph.dup
+        expect(copy.log.each.to_a).to be_empty
+        expect { copy.rewind_to(:before_copy) }.to raise_error(RuntimeError, /No tag/)
+      end
+
+      it 'does not change the original log when the copy is modified' do
+        before = @graph.log.each.to_a
+        copy = @graph.dup
+        copy.add_vertex('c', 'c', true)
+        copy.tag(:in_copy)
+        expect(@graph.log.each.to_a).to eq(before)
+        @graph.rewind_to(:before_copy)
+        expect(@graph.vertices.keys).to eq(%w(a))
+        expect(copy.vertices.keys).to eq(%w(a b c))
+      end
+
+      it 'can rewind the copy to tags taken after copying' do
+        copy = @graph.dup
+        copy.tag(:after_copy)
+        copy.detach_vertex_named('b')
+        copy.rewind_to(:after_copy)
+        expect(copy).to eq(@graph)
+        expect(copy.vertex_named('b').incoming_edges.size).to eq(2)
+      end
+    end
+
     describe 'detaching a vertex' do
       before do
         @graph = described_class.new
