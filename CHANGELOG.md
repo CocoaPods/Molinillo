@@ -12,6 +12,11 @@
   tag/rewind recovery contract for non-atomic child-vertex additions.
   [Samuel Giddins](https://github.com/segiddins)
 
+* Check whether a requirement already has a state by comparing it only with
+  the requirements of states for the same name, instead of with every state
+  on the stack, removing a quadratic cost from resolving large graphs.  
+  [Samuel Giddins](https://github.com/segiddins)
+
 ##### Bug Fixes
 
 * Raise a `CircularDependencyError` (instead of an `ArgumentError` claiming

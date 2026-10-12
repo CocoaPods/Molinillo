@@ -155,6 +155,7 @@ module Molinillo
         @original_requested = requested
         @base = base
         @states = []
+        @state_requirements_by_name = {}
         @iteration_counter = 0
         @parents_of = Hash.new { |h, k| h[k] = [] }
       end
@@ -174,7 +175,7 @@ module Molinillo
             debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
             state.pop_possibility_state.tap do |s|
               if s
-                states.push(s)
+                push_state(s)
                 activated.tag(s)
               end
             end
@@ -300,6 +301,7 @@ module Molinillo
         debug(depth) { "Unwinding for conflict: #{requirement} to #{details_for_unwind.state_index / 2}" }
         conflicts.tap do |c|
           sliced_states = states.slice!((details_for_unwind.state_index + 1)..-1)
+          forget_states(sliced_states) if sliced_states
           raise_error_unless_state(c)
           activated.rewind_to(sliced_states.first || :initial_state) if sliced_states
           state.conflicts = c
@@ -759,7 +761,7 @@ module Molinillo
         new_requirement = nil
         loop do
           new_requirement = new_requirements.shift
-          break if new_requirement.nil? || states.none? { |s| s.requirement == new_requirement }
+          break if new_requirement.nil? || !state_for_requirement?(new_requirement)
         end
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = possibilities_for_requirement(new_requirement)
@@ -835,8 +837,41 @@ module Molinillo
           state.activated.detach_vertex_named(state.name)
           push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
-          states.push(state).tap { activated.tag(state) }
+          push_state(state).tap { activated.tag(state) }
         end
+      end
+
+      # Pushes the given state onto the stack, indexing its requirement by name.
+      # @param [ResolutionState] state
+      # @return [Array<ResolutionState>] the stack of states
+      def push_state(state)
+        (@state_requirements_by_name[state.name] ||= []) << state.requirement if state.requirement
+        states.push(state)
+      end
+
+      # Removes the requirements of states that have been sliced off the stack
+      # from the by-name index.
+      # @param [Array<ResolutionState>] sliced_states
+      # @return [void]
+      def forget_states(sliced_states)
+        sliced_states.reverse_each do |s|
+          next unless s.requirement
+          reqs = @state_requirements_by_name.fetch(s.name)
+          index = reqs.rindex { |r| r.equal?(s.requirement) }
+          reqs.delete_at(index) if index
+        end
+      end
+
+      # @param [Object] requirement
+      # @return [Boolean] whether a state on the stack is for an equal requirement.
+      #   Only states for the same name are compared, so this is linear in the
+      #   number of states for that name rather than in the size of the stack.
+      #   This assumes that requirements which are `==` have the same
+      #   {SpecificationProvider#name_for}, which any provider should satisfy
+      #   since a requirement's name determines the vertex it applies to.
+      def state_for_requirement?(requirement)
+        reqs = @state_requirements_by_name[name_for(requirement)]
+        reqs ? reqs.any? { |r| r == requirement } : false
       end
     end
   end

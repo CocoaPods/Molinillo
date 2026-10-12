@@ -358,6 +358,38 @@ Molinillo could not find compatible versions for possibility named "json":
           to raise_error(CircularDependencyError, 'There is a circular dependency between p4 and p2')
       end
 
+      it 'does not compare every new requirement against the whole state stack' do
+        # m1..m200 each require b; nothing conflicts. Checking whether a
+        # requirement already has a state used to compare it against every
+        # state on the stack, i.e. O(n^2) requirement comparisons in total.
+        comparisons = 0
+        counting_dependency = Class.new(Gem::Dependency) do
+          define_method(:==) do |other|
+            comparisons += 1
+            super(other)
+          end
+        end
+        n = 200
+        specs = Hash.new([])
+        (1..n).each do |i|
+          spec = TestSpecification.new('name' => "m#{i}", 'version' => '1')
+          spec.dependencies = [counting_dependency.new('b', ">= #{i % 3}")]
+          specs["m#{i}"] = [spec]
+        end
+        specs['b'] = %w[1 2].map { |v| TestSpecification.new('name' => 'b', 'version' => v) }
+        index = TestIndex.new(specs)
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        demands = (1..n).map { |i| counting_dependency.new("m#{i}") }
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to include('b (2)', 'm1 (1)', "m#{n} (1)")
+        # Scanning the whole stack needs ~41_000 comparisons here.
+        expect(comparisons).to be < 10 * n
+      end
+
       context 'can resolve when two resolutions are equally valid' do
         INDICES.each do |index_class|
           it "with #{index_class.name.split('::').last}" do
