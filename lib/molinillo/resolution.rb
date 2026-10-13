@@ -155,6 +155,7 @@ module Molinillo
         @original_requested = requested
         @base = base
         @states = []
+        @states_by_requirement = {}
         @iteration_counter = 0
         @parents_of = Hash.new { |h, k| h[k] = [] }
       end
@@ -174,8 +175,7 @@ module Molinillo
             debug(depth) { "Creating possibility state for #{requirement} (#{possibilities.count} remaining)" }
             state.pop_possibility_state.tap do |s|
               if s
-                states.push(s)
-                activated.tag(s)
+                push_state(s)
               end
             end
           end
@@ -198,6 +198,10 @@ module Molinillo
 
       # @return [Array<ResolutionState>] the stack of states for the resolution
       attr_accessor :states
+      private :states
+
+      # @return [Hash{Object => ResolutionState}] states keyed by their requirement
+      attr_accessor :states_by_requirement
       private :states
 
       private
@@ -586,7 +590,7 @@ module Molinillo
       #   `requirement`.
       def find_state_for(requirement)
         return nil unless requirement
-        states.find { |i| requirement == i.requirement }
+        states_by_requirement[requirement]
       end
 
       # @param [Object] underlying_error
@@ -755,7 +759,7 @@ module Molinillo
         new_requirement = nil
         loop do
           new_requirement = new_requirements.shift
-          break if new_requirement.nil? || states.none? { |s| s.requirement == new_requirement }
+          break if new_requirement.nil? || states_by_requirement[new_requirement].nil?
         end
         new_name = new_requirement ? name_for(new_requirement) : ''.freeze
         possibilities = possibilities_for_requirement(new_requirement)
@@ -831,8 +835,13 @@ module Molinillo
           state.activated.detach_vertex_named(state.name)
           push_state_for_requirements(state.requirements.dup, false, state.activated)
         else
-          states.push(state).tap { activated.tag(state) }
+          push_state(state)
         end
+      end
+
+      def push_state(state)
+        states_by_requirement[state.requirement] = state
+        states.push(state).tap { activated.tag(state) }
       end
     end
   end
