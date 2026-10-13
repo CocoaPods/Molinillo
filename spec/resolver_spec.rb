@@ -173,6 +173,8 @@ Molinillo could not find compatible versions for possibility named "missing":
         end
       end
 
+      # The fixture index contains only json 1.8.0: chef's upper bound alone
+      # is unsatisfiable, whereas berkshelf's json requirement is redundant.
       it 'raises conflicts with requirement trees' do
         test_case = TestCase.all.find { |tc| tc.name == 'yields conflicts if a child dependency is not resolved' }
         index_class = TestIndex
@@ -181,16 +183,11 @@ Molinillo could not find compatible versions for possibility named "missing":
           expect(conflict.message).to eq <<-EOS.strip
 Unable to satisfy the following requirements:
 
-- `json (>= 1.7.7)` required by `berkshelf (2.0.7)`
 - `json (<= 1.7.7, >= 1.4.4)` required by `chef (10.26)`
           EOS
           expect(conflict.message_with_trees(:version_for_spec => lambda(&:version))).to eq <<-EOS.strip
 Molinillo could not find compatible versions for possibility named "json":
   In user-specified dependency:
-    chef_app_error (>= 0) was resolved to 1.0.0, which depends on
-      berkshelf (~> 2.0) was resolved to 2.0.7, which depends on
-        json (>= 1.7.7)
-
     chef_app_error (>= 0) was resolved to 1.0.0, which depends on
       chef (~> 10.26) was resolved to 10.26, which depends on
         json (<= 1.7.7, >= 1.4.4)
@@ -214,6 +211,119 @@ Molinillo could not find compatible versions for possibility named "json":
           with(have_attributes(:name => 'actionpack')).and_call_original
         resolved = @resolver.resolve([dep], DependencyGraph.new)
         expect(resolved.map(&:payload).map(&:to_s)).to eq(['actionpack (1.2.3)'])
+      end
+
+      context 'when allow_missing? returns true for one of several requirements on a name' do
+        let(:index) do
+          TestIndex.new(
+            'b' => [
+              TestSpecification.new('name' => 'b', 'version' => '1.0', 'dependencies' => { 'c' => '> 9.0' }),
+            ],
+            'c' => [
+              TestSpecification.new('name' => 'c', 'version' => '3.0'),
+            ],
+            'd' => [
+              TestSpecification.new('name' => 'd', 'version' => '2.0', 'dependencies' => { 'c' => '>= 1.0' }),
+            ]
+          ).tap do |index|
+            def index.allow_missing?(_dependency)
+              true
+            end
+
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(demands)
+          described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+        end
+
+        it 'keeps an explicit requirement on the name when a nested one is missing' do
+          resolved = resolve([Gem::Dependency.new('b'), Gem::Dependency.new('c')])
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['b (1.0)', 'c (3.0)'])
+          expect(resolved.vertex_named('c').requirements).to eq([Gem::Dependency.new('c')])
+        end
+
+        it 'keeps an explicit requirement on the name when another explicit one is missing' do
+          expect(resolve([Gem::Dependency.new('c', '> 9.0'), Gem::Dependency.new('c')]).map(&:payload).map(&:to_s)).
+            to eq(['c (3.0)'])
+          expect(resolve([Gem::Dependency.new('c'), Gem::Dependency.new('c', '> 9.0')]).map(&:payload).map(&:to_s)).
+            to eq(['c (3.0)'])
+        end
+
+        it 'keeps the dependencies of activated specs when a later requirement on the same name is missing' do
+          resolved = resolve([Gem::Dependency.new('d'), Gem::Dependency.new('b')])
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['b (1.0)', 'c (3.0)', 'd (2.0)'])
+          expect(resolved.vertex_named('d').outgoing_edges.map(&:requirement)).
+            to eq([Gem::Dependency.new('c', '>= 1.0')])
+          expect(resolved.vertex_named('b').outgoing_edges).to be_empty
+        end
+      end
+
+      context 'when allow_missing? lets a requirement with no possibilities be ignored' do
+        def index_with(specs)
+          TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, dependencies|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+            end
+          end).tap do |index|
+            def index.allow_missing?(_dependency)
+              true
+            end
+
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |name, req| Gem::Dependency.new(name, req) }, DependencyGraph.new).
+            map(&:payload).map(&:to_s)
+        end
+
+        it 'does not treat an ignored dependency as part of a cycle' do
+          # c 1.1 depends on `b (> 1.5)`, which no version of b satisfies, so it
+          # is ignored and there is no c -> b edge to close a cycle.
+          index = index_with('b' => { '1.0' => { 'c' => '>= 0' } }, 'c' => { '1.1' => { 'b' => '> 1.5' } })
+
+          expect(resolve(index, [['b', '>= 0']])).to match_array(['b (1.0)', 'c (1.1)'])
+        end
+
+        it 'does not treat an ignored dependency on the same name as a cycle' do
+          index = index_with('a' => { '3.0' => { 'a' => '> 3.0' } })
+
+          expect(resolve(index, [['a', '>= 0']])).to eq(['a (3.0)'])
+        end
+
+        it 'ignores such a dependency on a locked name too' do
+          # Re-resolving against the previous result as the base must give the
+          # same result: `b (> 1.5)` has no possibilities with b locked either.
+          index = index_with('b' => { '1.0' => { 'c' => '>= 0' } }, 'c' => { '1.1' => { 'b' => '> 1.5' } })
+          base = DependencyGraph.new
+          base.add_vertex('b', index.specs['b'].first, true)
+          base.add_vertex('c', index.specs['c'].first, true)
+
+          resolved = described_class.new(index, TestUI.new).
+                     resolve([Gem::Dependency.new('b', '>= 0')], base).map(&:payload).map(&:to_s)
+          expect(resolved).to match_array(['b (1.0)', 'c (1.1)'])
+        end
+
+        it 'does not let an ignored requirement take part in conflicts, whatever the requirement order' do
+          # `a (> 2.0)` has no possibilities and is ignored; the other two
+          # requirements are satisfied by a 2.0.a.
+          index = index_with('a' => { '2.0.a' => { 'd' => '>= 0' }, '2.0' => {} }, 'd' => { '1.0' => {} })
+          demands = [['a', '= 2.0.a'], ['a', '>= 0'], ['a', '> 2.0']]
+
+          demands.permutation.each do |order|
+            expect(resolve(index, order)).to match_array(['a (2.0.a)', 'd (1.0)'])
+          end
+        end
       end
 
       it 'only cleans up orphaned vertices after swapping' do
@@ -310,6 +420,714 @@ Molinillo could not find compatible versions for possibility named "json":
 
         expect { resolver.resolve(demands, DependencyGraph.new) }.
           to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c and d')
+      end
+
+      it 'raises a circular dependency error regardless of the order dependencies are requested' do
+        index = TestIndex.new(
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1.0.0', 'dependencies' => { 'b' => '= 1.0.0' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1.0.0', 'dependencies' => { 'c' => '= 1.0.0' }),
+          ],
+          'c' => [
+            TestSpecification.new('name' => 'c', 'version' => '1.0.0', 'dependencies' => { 'a' => '= 1.0.0' }),
+          ]
+        )
+
+        demands = [
+          Gem::Dependency.new('b'),
+          Gem::Dependency.new('a'),
+        ]
+
+        resolver = described_class.new(index, TestUI.new)
+
+        expect { resolver.resolve(demands, DependencyGraph.new) }.
+          to raise_error(CircularDependencyError, 'There is a circular dependency between a and b and c')
+      end
+
+      it 'raises the recorded circular dependency error once every alternative has failed' do
+        # p4 (2) -> p2 (1) -> p4 is circular, and p4 (1) depends on p3, which
+        # does not exist. The CircularDependencyError hit first is recorded as
+        # the conflict's underlying error and must be raised once the stack is
+        # exhausted, rather than re-entering conflict handling with no state.
+        # p3 is absent from the index; Hash.new([]) mirrors fixture-loaded indices.
+        specs = Hash.new([]).merge(
+          'p2' => [
+            TestSpecification.new('name' => 'p2', 'version' => '1', 'dependencies' => { 'p4' => '>= 2' }),
+          ],
+          'p4' => [
+            TestSpecification.new('name' => 'p4', 'version' => '1', 'dependencies' => { 'p3' => '= 1' }),
+            TestSpecification.new('name' => 'p4', 'version' => '2', 'dependencies' => { 'p2' => '!= 2' }),
+          ]
+        )
+        index = TestIndex.new(specs)
+        resolver = described_class.new(index, TestUI.new)
+
+        expect { resolver.resolve([Gem::Dependency.new('p4', '>= 0')], DependencyGraph.new) }.
+          to raise_error(CircularDependencyError, /\AThere is a circular dependency between p4 and p2\b/)
+      end
+
+      it 'does not compare every new requirement against the whole state stack' do
+        # m1..m200 each require b; nothing conflicts. Checking whether a
+        # requirement already has a state used to compare it against every
+        # state on the stack, i.e. O(n^2) requirement comparisons in total.
+        comparisons = 0
+        counting_dependency = Class.new(Gem::Dependency) do
+          define_method(:==) do |other|
+            comparisons += 1
+            super(other)
+          end
+        end
+        n = 200
+        specs = Hash.new([])
+        (1..n).each do |i|
+          spec = TestSpecification.new('name' => "m#{i}", 'version' => '1')
+          spec.dependencies = [counting_dependency.new('b', ">= #{i % 3}")]
+          specs["m#{i}"] = [spec]
+        end
+        specs['b'] = %w[1 2].map { |v| TestSpecification.new('name' => 'b', 'version' => v) }
+        index = TestIndex.new(specs)
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        demands = (1..n).map { |i| counting_dependency.new("m#{i}") }
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to include('b (2)', 'm1 (1)', "m#{n} (1)")
+        # Scanning the whole stack needs ~41_000 comparisons here.
+        expect(comparisons).to be < 10 * n
+      end
+
+      it 'does not unwind exponentially when several parents share an equal requirement' do
+        # a1..a10 each have versions 1..3, where a_i (j) requires `s (= j)` --
+        # the same requirement for every a_i. f, processed last, requires
+        # `s (= 1)`, so every a_i has to drop to version 1.
+        #
+        # Requirements are compared with `==` by the resolver, but `eql?` is
+        # up to the provider. Bundler makes Gem::Dependency#eql? value-based
+        # (so Array#uniq already collapses the duplicates); plain RubyGems
+        # does not, and that identity-based `eql?` is what triggers the bug.
+        identity_dependency = Class.new(Gem::Dependency) do
+          def eql?(other)
+            equal?(other)
+          end
+        end
+        n = 10
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| identity_dependency.new(d.name, d.requirement) }
+          end
+        end
+        specs = Hash.new([])
+        (1..n).each do |i|
+          specs["a#{i}"] = %w[1 2 3].map { |v| spec.call("a#{i}", v, 's' => "= #{v}") }
+        end
+        specs['s'] = %w[1 2 3].map { |v| spec.call('s', v) }
+        specs['f'] = [spec.call('f', '1', 's' => '= 1')]
+        index = TestIndex.new(specs)
+        # Keep declaration order so that f's requirement is only seen after
+        # every a_i has been activated at its newest version.
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        ui = TestUI.new
+        def ui.progress_rate
+          0.0 # report progress on every iteration
+        end
+
+        def ui.iterations
+          @iterations ||= 0
+        end
+
+        def ui.indicate_progress
+          @iterations = iterations + 1
+        end
+
+        demands = (1..n).map { |i| identity_dependency.new("a#{i}") } + [identity_dependency.new('f')]
+        resolved = described_class.new(index, ui).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).
+          to match_array((1..n).map { |i| "a#{i} (1)" } + ['s (1)', 'f (1)'])
+        # Exponential unwinding needs 5202 iterations here; linear needs ~250.
+        expect(ui.iterations).to be < 500
+      end
+
+      it 'unwinds to the package that closes a cycle when an older version avoids it' do
+        # x (2) -> a -> b -> x is circular, but x (1) has no dependencies, so
+        # { x (1), a (1), b (1) } is a valid resolution. The cycle is detected
+        # while activating b; b's own requirement was introduced by the
+        # user-requested a, so only the requirements along the cycle (here
+        # x (2)'s dependency on a) lead back to x.
+        index = TestIndex.new(
+          'x' => [
+            TestSpecification.new('name' => 'x', 'version' => '1'),
+            TestSpecification.new('name' => 'x', 'version' => '2', 'dependencies' => { 'a' => '>= 1' }),
+          ],
+          'a' => [
+            TestSpecification.new('name' => 'a', 'version' => '1', 'dependencies' => { 'b' => '>= 1' }),
+          ],
+          'b' => [
+            TestSpecification.new('name' => 'b', 'version' => '1', 'dependencies' => { 'x' => '>= 1' }),
+          ]
+        )
+        # Keep declaration order: x is activated (at 2) before a and b.
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+        demands = [Gem::Dependency.new('x'), Gem::Dependency.new('a')]
+
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['x (1)', 'a (1)', 'b (1)'])
+      end
+
+      it 'still retries an older version of the package whose activation closes a cycle' do
+        # p4 -> p5 -> p2 (2) -> p4 is circular, and the cycle is detected while
+        # activating p2 (2); p2 (1) has no dependencies. The requirements along
+        # the cycle are for other names and must not stop p2 (1) from being
+        # considered as an alternative for p2.
+        index = TestIndex.new(
+          'p2' => [
+            TestSpecification.new('name' => 'p2', 'version' => '1'),
+            TestSpecification.new('name' => 'p2', 'version' => '2', 'dependencies' => { 'p4' => '<= 1' }),
+          ],
+          'p4' => [
+            TestSpecification.new('name' => 'p4', 'version' => '4', 'dependencies' => { 'p5' => '>= 4' }),
+          ],
+          'p5' => [
+            TestSpecification.new('name' => 'p5', 'version' => '4', 'dependencies' => { 'p2' => '< 4' }),
+          ]
+        )
+
+        resolved = described_class.new(index, TestUI.new).resolve([Gem::Dependency.new('p4')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['p2 (1)', 'p4 (4)', 'p5 (4)'])
+      end
+
+      it 'unwinds a long cycle without cubic requirement comparisons' do
+        # p1 (2) -> p2 -> ... -> p64 -> p1 is circular; p1 (1) has no
+        # dependencies. Every requirement along the cycle is binding, so there
+        # are ~n requirement trees of length up to n. Looking up their states
+        # by scanning the stack, and deduplicating unwind details by value
+        # (hashing their requirement trees), used to make this O(n^3).
+        operations = 0
+        counting_dependency = Class.new(Gem::Dependency) do
+          define_method(:==) do |other|
+            operations += 1
+            super(other)
+          end
+
+          define_method(:hash) do
+            operations += 1
+            super()
+          end
+        end
+        n = 64
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| counting_dependency.new(d.name, d.requirement) }
+          end
+        end
+        specs = Hash.new([])
+        specs['p1'] = [spec.call('p1', '1'), spec.call('p1', '2', 'p2' => '>= 1')]
+        (2..n).each { |i| specs["p#{i}"] = [spec.call("p#{i}", '1', "p#{i == n ? 1 : i + 1}" => '>= 1')] }
+        index = TestIndex.new(specs)
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+
+        resolved = described_class.new(index, TestUI.new).resolve([counting_dependency.new('p1')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to eq(['p1 (1)'])
+        # O(n^3) needs ~240_000 operations here; O(n^2) needs ~13_000.
+        expect(operations).to be < 10 * n * n
+      end
+
+      it 'traces equal requirements from different parents separately when unwinding a cycle' do
+        # p2 (1) and p3 (2) both require `p4 (>= 2)`, and p4 (2) -> p3 closes
+        # the cycle p3 -> p4 -> p3; p3 (1) has no dependencies, so
+        # { p2 (1), p3 (1), p4 (2) } is a valid resolution. With a value-based
+        # `eql?` (as Bundler gives Gem::Dependency), p3's `p4 (>= 2)` used to be
+        # merged with p2's, so the cycle was never traced back to p3.
+        value_eql_dependency = Class.new(Gem::Dependency) do
+          def eql?(other)
+            self == other
+          end
+        end
+        spec = lambda do |name, version, deps = {}|
+          TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps).tap do |s|
+            s.dependencies = s.dependencies.map { |d| value_eql_dependency.new(d.name, d.requirement) }
+          end
+        end
+        index = TestIndex.new(
+          'p2' => [spec.call('p2', '1', 'p4' => '>= 2')],
+          'p3' => [spec.call('p3', '1'), spec.call('p3', '2', 'p4' => '>= 2')],
+          'p4' => [spec.call('p4', '2', 'p3' => '!= 3')]
+        )
+        def index.sort_dependencies(dependencies, _activated, _conflicts)
+          dependencies
+        end
+        demands = [value_eql_dependency.new('p2'), value_eql_dependency.new('p3')]
+
+        resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to match_array(['p2 (1)', 'p3 (1)', 'p4 (2)'])
+      end
+
+      context 'when an earlier requirement narrowed the possibilities by choosing a possibility set' do
+        # a 0.9 and a 3.0 have the same dependencies, but a 2.0 does not, so
+        # `a (>= 0)` sees the sets [0.9] [2.0] [3.0] while `a (!= 2.0)` sees
+        # the single set [0.9, 3.0]. Choosing [3.0] for `a (>= 0)` narrows
+        # the activated a to 3.0, which `a (< 3.0)` then conflicts with, even
+        # though a 0.9 satisfies every requirement.
+        let(:index) do
+          TestIndex.new(
+            'a' => [
+              TestSpecification.new('name' => 'a', 'version' => '0.9'),
+              TestSpecification.new('name' => 'a', 'version' => '2.0', 'dependencies' => { 'd' => '>= 0' }),
+              TestSpecification.new('name' => 'a', 'version' => '3.0'),
+            ],
+            'd' => [
+              TestSpecification.new('name' => 'd', 'version' => '1.0'),
+            ]
+          ).tap do |index|
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        it 'unwinds to the requirement that chose the set' do
+          demands = [
+            Gem::Dependency.new('a', '!= 2.0'),
+            Gem::Dependency.new('a', '>= 0'),
+            Gem::Dependency.new('a', '< 3.0'),
+          ]
+
+          resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+          expect(resolved.map(&:payload).map(&:to_s)).to eq(['a (0.9)'])
+        end
+
+        it 'unwinds to the requirement that chose the set when the requirements are transitive' do
+          index.specs['w'] = [
+            TestSpecification.new('name' => 'w', 'version' => '1.0', 'dependencies' => { 'a' => '!= 2.0' }),
+          ]
+          index.specs['x'] = [
+            TestSpecification.new('name' => 'x', 'version' => '1.0', 'dependencies' => { 'a' => '>= 0' }),
+          ]
+          index.specs['y'] = [
+            TestSpecification.new('name' => 'y', 'version' => '1.0', 'dependencies' => { 'a' => '< 3.0' }),
+          ]
+          demands = [
+            Gem::Dependency.new('w'),
+            Gem::Dependency.new('x'),
+            Gem::Dependency.new('y'),
+          ]
+
+          resolved = described_class.new(index, TestUI.new).resolve(demands, DependencyGraph.new)
+
+          expect(resolved.map(&:payload).map(&:to_s)).to match_array(['a (0.9)', 'w (1.0)', 'x (1.0)', 'y (1.0)'])
+        end
+      end
+
+      it 'does not add unwinding work for conflicts that regular unwinding can fix' do
+        # Minimized from a generated case where unwinding to every state that
+        # chose a possibility set for the conflicting name (instead of only when
+        # no other unwind is possible) took 884 instead of 214 unwinds.
+        specs = {
+          'a' => { '2.0' => { 'b' => '>= 0', 'e' => '>= 0', 'f' => '>= 0', 'g' => '>= 0' } },
+          'b' => { '1.0' => { 'c' => '>= 0', 'd' => '>= 0', 'h' => '>= 0' } },
+          'c' => { '1.0' => { 'f' => '>= 0' } },
+          'd' => { '1.1' => { 'i' => '<= 1.1' } },
+          'e' => { '3.0' => { 'g' => '= 1.0', 'h' => '!= 1.1' } },
+          'f' => { '3.0' => { 'i' => '!= 1.5' } },
+          'g' => { '1.0' => { 'i' => '= 0.9' }, '3.0' => { 'h' => '!= 1.0', 'i' => '>= 0' } },
+          'h' => { '1.0' => { 'i' => '>= 0' }, '2.0' => { 'i' => '> 0' }, '3.0' => { 'i' => '~> 0' } },
+          'i' => { '0.9' => {}, '1.0' => { 'j' => '>= 0' }, '2.0' => { 'j' => '!= 1.0' } },
+          'j' => { '1.1' => {} },
+        }
+        index = TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+          h[name] = versions.map do |version, dependencies|
+            TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+          end
+        end)
+        def index.sort_dependencies(dependencies, activated, conflicts)
+          dependencies.sort_by do |d|
+            [activated.vertex_named(d.name).payload ? 0 : 1, conflicts[d.name] ? 0 : 1]
+          end.reverse
+        end
+        ui = TestUI.new
+        def ui.progress_rate
+          0.0 # report progress on every iteration
+        end
+
+        def ui.iterations
+          @iterations ||= 0
+        end
+
+        def ui.indicate_progress
+          @iterations = iterations + 1
+        end
+
+        resolved = described_class.new(index, ui).resolve([Gem::Dependency.new('a', '>= 0')], DependencyGraph.new)
+
+        expect(resolved.map(&:payload).map(&:to_s)).to include('a (2.0)', 'g (1.0)', 'i (0.9)')
+        # 44 iterations on master; unwinding to every set-choosing state needed 74.
+        expect(ui.iterations).to be < 55
+      end
+
+      context 'when a prerelease requirement is only seen after a prerelease was considered' do
+        # TestIndex only lets a prerelease satisfy a non-prerelease requirement
+        # once some requirement on the same name is a prerelease requirement,
+        # so whether a prerelease is acceptable depends on requirements that
+        # may not have been processed yet. Keep the demands in the given order
+        # so the later requirement really is seen later.
+        def index_with(specs)
+          TestIndex.new(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, dependencies|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => dependencies)
+            end
+          end).tap do |index|
+            def index.sort_dependencies(dependencies, _activated, _conflicts)
+              dependencies
+            end
+          end
+        end
+
+        def resolve(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |name, req| Gem::Dependency.new(name, req) }, DependencyGraph.new).
+            map(&:payload).map(&:to_s)
+        end
+
+        it 'keeps a prerelease in the activated possibility set until a later requirement allows it' do
+          index = index_with('a' => { '1.0' => {}, '2.0.a' => {} }, 'z' => { '1' => { 'a' => '>= 2.0.a' } })
+
+          expect(resolve(index, [['a', '>= 0'], ['z', '>= 0']])).to match_array(['a (2.0.a)', 'z (1)'])
+          expect(resolve(index, [['z', '>= 0'], ['a', '>= 0']])).to match_array(['a (2.0.a)', 'z (1)'])
+        end
+
+        it 'activates a prerelease-only possibility set that a later requirement allows' do
+          index = index_with('a' => { '2.0.a' => { 'b' => '<= 2.0.a' } }, 'b' => { '2.0.a' => {} })
+
+          expect(resolve(index, [['b', '>= 0'], ['a', '<= 2.0.a']])).to match_array(['a (2.0.a)', 'b (2.0.a)'])
+          expect(resolve(index, [['a', '<= 2.0.a'], ['b', '>= 0']])).to match_array(['a (2.0.a)', 'b (2.0.a)'])
+        end
+
+        it 'retries a prerelease after a circular release even before its enabling requirement is seen' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => { 'd' => '>= 1.1.a' } })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect(resolve(index, order.map { |name| [name, '>= 0'] })).to match_array(['a (1.0)', 'd (3.0.b)'])
+          end
+        end
+
+        it 'does not accept a speculative prerelease unless the completed graph enables it' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => {} })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect { resolve(index, order.map { |name| [name, '>= 0'] }) }.to raise_error(ResolverError)
+          end
+        end
+
+        it 'does not relax a hard version constraint when retrying an incomplete context' do
+          index = index_with('d' => { '2.0' => { 'd' => '>= 0' }, '3.0.b' => {} },
+                             'a' => { '1.0' => { 'd' => '>= 3.0.b' } })
+
+          expect { resolve(index, [['d', '< 3.0.b'], ['a', '>= 0']]) }.to raise_error(ResolverError)
+        end
+
+        it 'preserves the separate older-enabling-parent limitation in every order' do
+          index = index_with('a' => { '1.0' => { 'd' => '>= 3.0.b' }, '3.0' => {} },
+                             'd' => { '3.0.b' => {} })
+
+          [%w[d a], %w[a d]].each do |order|
+            expect { resolve(index, order.map { |name| [name, '>= 0'] }) }.to raise_error(ResolverError)
+          end
+        end
+
+        it 'does not partition a single possibility set merely to rediscover the same order' do
+          index = index_with('a' => { '1.0' => {}, '2.0' => {} })
+          dependency = Gem::Dependency.new('a', '>= 0')
+          graph = DependencyGraph.new
+          graph.add_vertex('a', nil, true).explicit_requirements << dependency
+          resolution = Resolver::Resolution.new(index, TestUI.new, [dependency], DependencyGraph.new)
+          set = Resolver::Resolution::PossibilitySet.new([], index.search_for(dependency))
+          sets = [set]
+          expect(index).not_to receive(:requirement_satisfied_by?)
+          expect(resolution.send(:try_unsatisfying_possibility_sets_last, dependency, sets, graph)).to equal(sets)
+        end
+
+        it 'still rejects a prerelease that no requirement allows' do
+          index = index_with('a' => { '2.0.a' => {} })
+
+          expect { resolve(index, [['a', '>= 0']]) }.to raise_error(VersionConflict)
+        end
+
+        it 'falls back to a release with different dependencies without trying the prerelease first' do
+          index = index_with('a' => { '1.0' => {}, '2.0.a' => { 'x' => '>= 0' } }, 'x' => { '1.0' => {} })
+
+          expect(resolve(index, [['a', '>= 0']])).to eq(['a (1.0)'])
+        end
+      end
+
+      context 'when pruning doomed possibilities' do
+        # These examples describe the default (lazy) schedule.
+        around do |example|
+          schedule = ENV.delete('MOLINILLO_PRUNE_SCHEDULE')
+          begin
+            example.run
+          ensure
+            ENV['MOLINILLO_PRUNE_SCHEDULE'] = schedule if schedule
+          end
+        end
+
+        def index_for(specs, prune)
+          index = TestIndex.new(Hash.new([]).merge(specs.each_with_object({}) do |(name, versions), h|
+            h[name] = versions.map do |version, deps|
+              TestSpecification.new('name' => name, 'version' => version, 'dependencies' => deps)
+            end
+          end))
+          index.define_singleton_method(:prune_doomed_possibilities?) { prune }
+          # Declaration order, except that requirements on `w` come first (see
+          # #with_warm_up).
+          def index.sort_dependencies(dependencies, _activated, _conflicts)
+            dependencies.each_with_index.sort_by { |d, i| [d.name == 'w' ? 0 : 1, i] }.map(&:first)
+          end
+          index
+        end
+
+        def resolve_with(index, demands)
+          described_class.new(index, TestUI.new).
+            resolve(demands.map { |n, r| Gem::Dependency.new(n, r) }, DependencyGraph.new)
+        end
+
+        # Pruning starts at the first conflict. This prepends a conflict that
+        # is found (and fixed) before anything else is resolved: w (= 1) is
+        # requested, and t (2), tried first, needs w (= 2).
+        def with_warm_up(specs, demands)
+          [specs.merge('t' => { '1' => { 'w' => '= 1' }, '2' => { 'w' => '= 2' } }, 'w' => { '1' => {}, '2' => {} }),
+           [['w', '= 1'], %w[t >=0]] + demands]
+        end
+
+        # a (2.0) needs b (>= 3), whose only version needs a missing package,
+        # so a (2.0) cannot be part of any resolution; a (1.0) is usable, but
+        # conflicts with d on x.
+        let(:doomed_chain) do
+          {
+            'a' => { '1.0' => { 'x' => '= 1' }, '2.0' => { 'b' => '>= 3' } },
+            'b' => { '3.0' => { 'missing' => '>= 1' } },
+            'x' => { '1' => {}, '2' => {} },
+            'd' => { '1' => { 'x' => '= 2' }, '2' => { 'x' => '>= 2' } },
+          }
+        end
+
+        it 'is off unless the provider opts in' do
+          provider = Class.new { include SpecificationProvider }.new
+          expect(provider.prune_doomed_possibilities?).to be false
+
+          index = index_for(doomed_chain, false)
+          expect { resolve_with(index, [%w[a >=0], %w[d >=0]]) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+            expect(error.message).not_to include('not considered')
+            # Without pruning, a (2.0) is tried and its missing dependency is
+            # one of the conflicts.
+            expect(error.conflicts.keys).to contain_exactly('missing', 'x')
+          end
+        end
+
+        it 'resolves without trying versions that cannot be part of any resolution' do
+          specs, demands = with_warm_up(doomed_chain.merge('d' => { '1' => { 'x' => '= 1' } }), [%w[a >=0], %w[d >=0]])
+          iterations = [true, false].map do |prune|
+            ui = TestUI.new
+            def ui.progress_rate
+              0.0
+            end
+
+            def ui.iterations
+              @iterations ||= 0
+            end
+
+            def ui.indicate_progress
+              @iterations = iterations + 1
+            end
+            resolved = described_class.new(index_for(specs, prune), ui).
+                       resolve(demands.map { |n, r| Gem::Dependency.new(n, r) }, DependencyGraph.new)
+            expect(resolved.map(&:payload).map(&:to_s)).
+              to contain_exactly('a (1.0)', 'x (1)', 'd (1)', 't (1)', 'w (1)')
+            ui.iterations
+          end
+
+          # Without pruning, a (2.0), b (3.0) and the missing package are tried
+          # first.
+          expect(iterations.first).to be < iterations.last
+        end
+
+        it 'explains a pruned chain of doomed versions in the conflict' do
+          specs, demands = with_warm_up(doomed_chain, [%w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            # a (2.0) is never tried, so its missing dependency is no conflict.
+            expect(error.conflicts.keys).to include('x')
+            expect(error.conflicts.keys).not_to include('missing')
+            reasons = error.pruned_possibilities.fetch('a')
+            expect(reasons.map { |r| r.possibility.to_s }).to eq(['a (2.0)'])
+            reason = reasons.first
+            expect(reason.kind).to eq(:candidates_doomed)
+            expect(reason.dependency.to_s).to eq('b (>= 3)')
+            expect(reason.candidate_reasons.map { |r| [r.possibility.to_s, r.dependency.to_s, r.kind] }).
+              to eq([['b (3.0)', 'missing (>= 1)', :missing]])
+
+            section = <<-EOS.strip
+These versions were not considered, because they cannot be part of any resolution:
+- `a (2.0)` depends on `b (>= 3)`, and every version that could satisfy it cannot be used either:
+    - `b (3.0)` depends on `missing (>= 1)`, which no available version satisfies
+            EOS
+            expect(error.message).to end_with("\n\n" + section)
+            expect(error.message_with_trees).to end_with("\n\n" + section)
+          end
+        end
+
+        let(:relevant_section) do
+          <<-EOS.strip
+These versions were not considered, because they cannot be part of any resolution:
+- `a (2.0)` depends on `b (>= 3)`, and every version that could satisfy it cannot be used either:
+    - `b (3.0)` depends on `missing (>= 1)`, which no available version satisfies
+          EOS
+        end
+
+        it 'does not list other pruned versions when relevant ones explain an unaffected conflict' do
+          # u (2) depends on a missing package and is pruned, but fails on a
+          # name (gone) that has nothing to do with the conflict on x.
+          specs, demands = with_warm_up(doomed_chain.merge('u' => { '1' => {}, '2' => { 'gone' => '>= 1' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities.keys).to eq(['a'])
+            # Still available structurally.
+            other = error.other_pruned_possibilities.each_with_object({}) do |(name, reasons), h|
+              h[name] = reasons.map { |r| [r.possibility.to_s, r.kind] }
+            end
+            expect(other).to eq('u' => [['u (2)', :missing]])
+            expect(error.other_pruned_possibilities_affect_explanation?).to be false
+            expect(error.message).to end_with("\n\n" + relevant_section)
+            expect(error.message_with_trees).to end_with("\n\n" + relevant_section)
+            expect(error.message).not_to include('Other versions')
+          end
+        end
+
+        it 'lists other pruned versions that fail on a name the conflict reports' do
+          # u (2) needs x (>= 3), which no version satisfies; x is the name the
+          # conflict is about, so trying u (2) would have led into it.
+          specs, demands = with_warm_up(doomed_chain.merge('u' => { '1' => {}, '2' => { 'x' => '>= 3' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities.keys).to eq(['a'])
+            expect(error.other_pruned_possibilities_affect_explanation?).to be true
+            sections = relevant_section + "\n" + <<-EOS.chomp
+
+Other versions that were not considered, because they cannot be part of any resolution:
+- `u (2)` depends on `x (>= 3)`, which no available version satisfies
+            EOS
+            expect(error.message).to end_with("\n\n" + sections)
+            expect(error.message_with_trees).to end_with("\n\n" + sections)
+          end
+        end
+
+        it 'lists other pruned versions when no relevant ones are listed' do
+          specs, demands = with_warm_up(doomed_chain.merge('a' => { '1.0' => { 'x' => '= 1' } },
+                                                           'u' => { '1' => {}, '2' => { 'gone' => '>= 1' } }),
+                                        [%w[u >=0], %w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+            expect(error.message).to end_with(<<-EOS.strip)
+
+
+Other versions that were not considered, because they cannot be part of any resolution:
+- `u (2)` depends on `gone (>= 1)`, which no available version satisfies
+            EOS
+          end
+        end
+
+        it 'caps the number of other pruned versions it lists' do
+          specs = doomed_chain.merge('a' => { '1.0' => { 'x' => '= 1' } })
+          others = (1..7).map { |i| "u#{i}" }
+          others.each { |u| specs[u] = { '1' => {}, '2' => { 'gone' => '>= 1' } } }
+          specs, demands = with_warm_up(specs, others.map { |u| [u, '>= 0'] } + [%w[a >=0], %w[d >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            expect(error.other_pruned_possibilities.keys).to match_array(others)
+            other_section = error.message.split("\n\nOther versions that were not considered").last
+            expect(other_section.lines.grep(/\A- `u\d \(2\)`/).size).to eq(5)
+            expect(other_section).to end_with("\n- (and 2 more)")
+          end
+        end
+
+        it 'explains versions excluded by a requirement every resolution must satisfy' do
+          # f, which is requested and has one version, needs s (= 1), so
+          # a (2), which needs s (= 2), cannot be part of any resolution.
+          specs = {
+            'f' => { '1' => { 's' => '= 1' } },
+            's' => { '1' => {}, '2' => {} },
+            'a' => { '1' => { 's' => '= 1', 't' => '= 1' }, '2' => { 's' => '= 2' } },
+            't' => { '1' => {}, '2' => {} },
+            'g' => { '1' => { 't' => '= 2' }, '2' => { 't' => '>= 2' } },
+          }
+          specs, demands = with_warm_up(specs, [%w[f >=0], %w[a >=0], %w[g >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(VersionConflict) do |error|
+            reason = error.pruned_possibilities.fetch('a').first
+            expect([reason.possibility.to_s, reason.kind]).to eq(['a (2)', :incompatible])
+            expect(reason.excluded_by.map { |r, source| [r.to_s, source] }).
+              to eq([['s (= 1)', 'every version of `f`']])
+            expect(error.message).to end_with(
+              '- `a (2)` depends on `s (= 2)`, but every version that satisfies it conflicts with ' \
+              '`s (= 1)` (required by every version of `f`)'
+            )
+          end
+        end
+
+        it 'explains pruned versions in a circular dependency error' do
+          # p4 (3), the newest, depends on the missing p3, so it is skipped;
+          # p4 (2) -> p2 (1) -> p4 is circular, which is the reported error.
+          specs = {
+            'p2' => { '1' => { 'p4' => '>= 2' } },
+            'p4' => { '2' => { 'p2' => '!= 2' }, '3' => { 'p3' => '= 1' } },
+          }
+          specs, demands = with_warm_up(specs, [%w[p4 >=0]])
+          expect { resolve_with(index_for(specs, true), demands) }.to raise_error(CircularDependencyError) do |error|
+            pruned = error.pruned_possibilities.each_with_object({}) do |(name, reasons), h|
+              h[name] = reasons.map { |r| [r.possibility.to_s, r.kind] }
+            end
+            expect(pruned).to eq('p4' => [['p4 (3)', :missing]])
+            expect(error.message).to eq(<<-EOS.strip)
+There is a circular dependency between p4 and p2
+
+These versions were not considered, because they cannot be part of any resolution:
+- `p4 (3)` depends on `p3 (= 1)`, which no available version satisfies
+            EOS
+          end
+        end
+
+        it 'does not ask providers that do not define the method' do
+          index = index_for(doomed_chain, true)
+          class << index
+            undef_method :prune_doomed_possibilities?
+          end
+          provider = Object.new
+          index_methods = [
+            :search_for, :dependencies_for, :requirement_satisfied_by?, :name_for,
+            :name_for_explicit_dependency_source, :name_for_locking_dependency_source,
+            :sort_dependencies, :allow_missing?, :dependencies_equal?,
+          ]
+          index_methods.each { |m| provider.define_singleton_method(m) { |*a| index.public_send(m, *a) } }
+          expect(provider).not_to respond_to(:prune_doomed_possibilities?)
+          expect { resolve_with(provider, [%w[a >=0], %w[d >=0]]) }.to raise_error(VersionConflict) do |error|
+            expect(error.pruned_possibilities).to be_empty
+          end
+        end
       end
 
       context 'can resolve when two resolutions are equally valid' do

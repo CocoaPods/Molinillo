@@ -33,7 +33,7 @@ module Molinillo
     # @return [Array<Vertex>] The sorted vertices.
     def self.tsort(vertices)
       TSort.tsort(
-        lambda { |b| vertices.each(&b) },
+        lambda { |&b| vertices.each(&b) },
         lambda { |v, &b| (v.successors & vertices).each(&b) }
       )
     end
@@ -73,23 +73,28 @@ module Molinillo
 
     # Initializes a copy of a {DependencyGraph}, ensuring that all {#vertices}
     # are properly copied.
+    #
+    # The copy starts with an empty {#log}: it has the same vertices and edges
+    # as `other`, but none of its history, so it cannot be rewound to tags
+    # that were added to `other` before the copy was made. The two graphs share
+    # no vertices, edges or log actions.
     # @param [DependencyGraph] other the graph to copy.
     def initialize_copy(other)
       super
       @vertices = {}
-      @log = other.log.dup
-      traverse = lambda do |new_v, old_v|
-        return if new_v.outgoing_edges.size == old_v.outgoing_edges.size
-        old_v.outgoing_edges.each do |edge|
-          destination = add_vertex(edge.destination.name, edge.destination.payload)
-          add_edge_no_circular(new_v, destination, edge.requirement)
-          traverse.call(destination, edge.destination)
-        end
-      end
+      @log = Log.new
       other.vertices.each do |name, vertex|
-        new_vertex = add_vertex(name, vertex.payload, vertex.root?)
+        new_vertex = Vertex.new(name, vertex.payload)
+        new_vertex.root = vertex.root
         new_vertex.explicit_requirements.replace(vertex.explicit_requirements)
-        traverse.call(new_vertex, vertex)
+        @vertices[name] = new_vertex
+      end
+      other.vertices.each_value do |vertex|
+        vertex.outgoing_edges.each do |edge|
+          new_edge = Edge.new(@vertices[edge.origin.name], @vertices[edge.destination.name], edge.requirement)
+          new_edge.origin.outgoing_edges << new_edge
+          new_edge.destination.incoming_edges << new_edge
+        end
       end
     end
 
@@ -130,23 +135,32 @@ module Molinillo
     def ==(other)
       return false unless other
       return true if equal?(other)
-      vertices.each do |name, vertex|
+      return false unless vertices.size == other.vertices.size
+      vertices.all? do |name, vertex|
         other_vertex = other.vertex_named(name)
-        return false unless other_vertex
-        return false unless vertex.payload == other_vertex.payload
-        return false unless other_vertex.successors.to_set == vertex.successors.to_set
+        other_vertex &&
+          vertex.payload == other_vertex.payload &&
+          other_vertex.successors.to_set == vertex.successors.to_set
       end
     end
 
+    # Adds a vertex with the given name (see {#add_vertex}) and an edge to it
+    # from each of the named parents. A `nil` parent name marks `requirement`
+    # as an explicit requirement of a root vertex.
+    #
+    # This is not atomic: if it raises, the changes made before the error
+    # remain in the graph. To recover, {#tag} the graph beforehand and
+    # {#rewind_to} that tag.
     # @param [String] name
     # @param [Object] payload
     # @param [Array<String>] parent_names
     # @param [Object] requirement the requirement that is requiring the child
-    # @return [void]
+    # @raise [CircularDependencyError] see {#add_edge}
+    # @return [Vertex] the vertex that was added to `self`
     def add_child_vertex(name, payload, parent_names, requirement)
       root = !parent_names.delete(nil) { true }
       vertex = add_vertex(name, payload, root)
-      vertex.explicit_requirements << requirement if root
+      log.add_explicit_requirement(self, name, requirement) if root
       parent_names.each do |parent_name|
         parent_vertex = vertex_named(parent_name)
         add_edge(parent_vertex, vertex, requirement)
@@ -187,6 +201,10 @@ module Molinillo
     # @param [Vertex] origin
     # @param [Vertex] destination
     # @param [Object] requirement the requirement that this edge represents
+    # @raise [CircularDependencyError] if the edge would create a cycle. Building
+    #   the error calls `possibilities` on the payload of each vertex on the
+    #   cycle, so cycle detection requires resolver payloads (which respond to
+    #   `possibilities`); other payloads, including `nil`, raise `NoMethodError`.
     # @return [Edge] the added edge
     def add_edge(origin, destination, requirement)
       if destination.path_to?(origin)
@@ -226,29 +244,27 @@ module Molinillo
     # @param [Vertex] to
     # @return [Array<Vertex>] the shortest path from `from` to `to`
     def path(from, to)
-      distances = Hash.new(vertices.size + 1)
-      distances[from.name] = 0
-      predecessors = {}
-      each do |vertex|
+      # Breadth-first search from `from`, so the first time a vertex is reached
+      # is along a shortest path, independent of vertex insertion order.
+      predecessors = { from.name => nil }
+      queue = [from]
+      until queue.empty? || predecessors.key?(to.name)
+        vertex = queue.shift
         vertex.successors.each do |successor|
-          if distances[successor.name] > distances[vertex.name] + 1
-            distances[successor.name] = distances[vertex.name] + 1
-            predecessors[successor] = vertex
-          end
+          next if predecessors.key?(successor.name)
+          predecessors[successor.name] = vertex
+          queue << successor
         end
       end
 
-      path = [to]
-      while before = predecessors[to]
-        path << before
-        to = before
-        break if to == from
-      end
-
-      unless path.last.equal?(from)
+      unless predecessors.key?(to.name)
         raise ArgumentError, "There is no path from #{from.name} to #{to.name}"
       end
 
+      path = [to]
+      while before = predecessors[path.last.name]
+        path << before
+      end
       path.reverse
     end
   end

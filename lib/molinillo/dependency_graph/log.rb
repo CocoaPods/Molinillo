@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'add_edge_no_circular'
+require_relative 'add_explicit_requirement'
 require_relative 'add_vertex'
 require_relative 'delete_edge'
 require_relative 'detach_vertex_named'
@@ -57,12 +58,23 @@ module Molinillo
         push_action(graph, SetPayload.new(name, payload))
       end
 
+      # Adds an explicit requirement to the vertex with the given name
+      # @param [DependencyGraph] graph the graph to perform the action on
+      # @param [String] name the name of the vertex
+      # @param [Object] requirement the explicit requirement
+      # @return [Array<Object>] the vertex's explicit requirements
+      def add_explicit_requirement(graph, name, requirement)
+        push_action(graph, AddExplicitRequirement.new(name, requirement))
+      end
+
       # Pops the most recent action from the log and undoes the action
       # @param [DependencyGraph] graph
       # @return [Action] the action that was popped off the log
       def pop!(graph)
         return unless action = @current_action
-        unless @current_action = action.previous
+        if @current_action = action.previous
+          @current_action.next = nil
+        else
           @first_action = nil
         end
         action.down(graph)
@@ -100,17 +112,30 @@ module Molinillo
       end
 
       # @macro action
+      # @raise [RuntimeError] if there is no such tag, without undoing anything
       def rewind_to(graph, tag)
+        unless reverse_each.any? { |action| tag?(action, tag) }
+          raise "No tag #{tag.inspect} found"
+        end
         loop do
           action = pop!(graph)
-          raise "No tag #{tag.inspect} found" unless action
-          break if action.class.action_name == :tag && action.tag == tag
+          break if tag?(action, tag)
         end
       end
 
       private
 
-      # Adds the given action to the log, running the action
+      # @return [Boolean] whether the action is a tag action for the given tag
+      def tag?(action, tag)
+        action.class.action_name == :tag && action.tag == tag
+      end
+
+      # Adds the given action to the log, running the action.
+      #
+      # The action is linked in before it runs, so that any actions it records
+      # while running (e.g. recursive detaches) come after it and are undone
+      # first. If running it raises, it is unlinked again, so that a failed
+      # action is never undone by a later rewind.
       # @param [DependencyGraph] graph
       # @param [Action] action
       # @return The value returned by `action.up`
@@ -119,7 +144,31 @@ module Molinillo
         @current_action.next = action if @current_action
         @current_action = action
         @first_action ||= action
-        action.up(graph)
+        begin
+          action.up(graph)
+        rescue StandardError
+          unlink(action)
+          raise
+        end
+      end
+
+      # Removes the given action from the log without undoing it
+      # @param [Action] action
+      # @return [Void]
+      def unlink(action)
+        previous = action.previous
+        following = action.next
+        if previous
+          previous.next = following
+        else
+          @first_action = following
+        end
+        if following
+          following.previous = previous
+        else
+          @current_action = previous
+        end
+        action.previous = action.next = nil
       end
     end
   end

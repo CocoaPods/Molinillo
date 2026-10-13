@@ -53,7 +53,7 @@ describe 'fuzzing' do
     Molinillo::INDICES.each do |ic|
       context "with #{ic.to_s.split('::').last}" do
         around(:example) do |ex|
-          old_seed = Random::DEFAULT.seed
+          old_seed = Random.srand
           ex.run
           Random.srand old_seed
         end
@@ -91,5 +91,5 @@ describe 'fuzzing' do
     7_898_789,
     0,
     3,
-  ].concat(Array.new(ENV.fetch('MOLINILLO_FUZZER', '0').to_i) { Random.rand })
+  ].concat(Array.new(ENV.fetch('MOLINILLO_FUZZER', '0').to_i) { Random.new_seed })
 end
